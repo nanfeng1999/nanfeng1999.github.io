@@ -1,0 +1,617 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JAVA CUP中文文档 | 南风渐起的博客</title>
+<link rel="shortcut icon" href="https://nanfeng1999.github.io/favicon.ico?v=1683948151951">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://nanfeng1999.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="JAVA CUP中文文档 | 南风渐起的博客 - Atom Feed" href="https://nanfeng1999.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="CUP中文文档
+引用自：https://blog.csdn.net/catchertherye/article/details/10985707
+引言：关于CUP0.10
+版本0.10与其先前的版本0.9相比，增加了很多新的变化和特性。这些..." />
+    <meta name="keywords" content="Doris" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://nanfeng1999.github.io">
+  <img class="avatar" src="https://nanfeng1999.github.io/images/avatar.png?v=1683948151951" alt="">
+  </a>
+  <h1 class="site-title">
+    南风渐起的博客
+  </h1>
+  <p class="site-description">
+    focus,feedback and fix!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              JAVA CUP中文文档
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-05-13
+              </span>
+              <span>
+                40 min read
+              </span>
+              
+                <a href="https://nanfeng1999.github.io/AdpOdL8Hf/" class="post-tag">
+                  # Doris
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="cup中文文档">CUP中文文档</h1>
+<p>引用自：https://blog.csdn.net/catchertherye/article/details/10985707</p>
+<h3 id="引言关于cup010">引言：关于CUP0.10</h3>
+<p>版本0.10与其先前的版本0.9相比，增加了很多新的变化和特性。这些变化使CUP看起来更像它的前辈YACC。总之，版本0.9的解析器文件规范已经不被新版本所兼容，为了写出适合新版本的规范文件，您有必要详细阅读新用户手册的附件C。然而，新版本为用户提供了更强大的功能和更多的选项，也使得编写解析器规范文件更容易。</p>
+<h3 id="第一章-简介和示例">第一章 简介和示例</h3>
+<p>这个手册为您描述了Java版有用语法解析器生成器(Constructor of Useful Parser简称CUP)的最基本操作及用法。CUP是一个使用简单规范文件生成LALR语法解析器的系统。它与被广泛使用的YACC程序扮演了同样的角色，事实上它实现了YACC大多数的功能。然而，CUP是用Java语言开发的，使用内嵌Java代码的规范文件，生成Java语言的语法解析器。(一下我们将语法解析器简称为解析器)。</p>
+<p></p>
+<p>尽管这本手册涵盖了CUP系统的方方面面，却相对简单，然而我们假定您至少懂得一点关于LR语法分析(从左向右扫描的一种语法分析方法)。使用过YACC的经验将有助于您对CUP规范文件的工作原理的理解，很多关于编译器构造的教材(比如引用[2,3])都会涵盖这些内容，大多使用YACC(与CUP非常类似的一个解析器生成器)作为一个具体的例子进行讲解。除此之外Andrew Appel的《现代编译器Java实现》一书在编译器构造中使用和描述了CUP系统。</p>
+<p></p>
+<p>使用CUP生成解析器包括：创建一个基于特定语法简单的规范文件、构造一个能将输入字符串分解成一系列有意义的符号(例如关键字、数字、特殊符号)的词法扫描器两个步骤。(一下我们将此法扫描器scanner简称为扫描器)。</p>
+<p></p>
+<p>作为一个例子，考虑一个简单的计算整数算数表达式的系统。该系统从标准终端上读取表达式(每个表达式以分号结束)，计算它们值，最后在标准终端上输出结果。这种系统的一个语法规范可以用下面的代码表示：</p>
+<pre><code>  expr_list ::= expr_list expr_part | expr_part
+  expr_part ::= expr ';'
+  expr      ::= expr '+' expr | expr '-' expr | expr '*' expr 
+	      | expr '/' expr | expr '%' expr | '(' expr ')'  
+              | '-' expr | number 
+</code></pre>
+<p>为了利用这个规范生成一个解析器，首先指定并命名可能在程序中出现的终结符及非终结符。这个例子的非终结符有：</p>
+<pre><code>expr_list， expr_part， expr 
+</code></pre>
+<p>终结符我们可以选择</p>
+<pre><code>SEMI， PLUS， MINUS， TIMES， DIVIDE， MOD， NUMBER， LPAREN， RPAREN 
+</code></pre>
+<blockquote>
+<figure data-type="image" tabindex="1"><img src="https://nanfeng1999.github.io/post-images/1683948020117.png" alt="" loading="lazy"></figure>
+</blockquote>
+<p>有经验的用户可能会注意到上述规范中存在的一个问题，就是它看起来非常含糊。一个含糊的文法，会将一个特定的输入用两种不同的方式进行解析，有可能会给出两种不同的结果。以上述规范为例，对于这样一个输入3+4*6，它会先计算3+4然后再乘于6，或者先计算4*6然后再加上3。老版本的CUP要求用户写明确的规范，但是现在这个版本为用户提供了一个指令来为符号指定优先级及结合性。这意味这上述不明确的文法在指定了优先级和结合性后仍然可以使用，下面将给出这方面更多的解释。基于上面的说明，我们可以构造如下一个简单的CUP规范文件：</p>
+<pre><code class="language-cup">//简单计算器的CUP规范(没有执行动作)
+
+import java_cup.runtime.*;
+
+/*初始设置、设定词法扫描器 */
+
+init with {: scanner.init();              :};
+
+scan with {: return scanner.next_token(); :};
+
+/* 终结符 (词法扫描器返回的符号). */
+
+terminal           SEMI, PLUS, MINUS, TIMES, DIVIDE, MOD;
+
+terminal           UMINUS, LPAREN, RPAREN;
+
+terminal Integer  NUMBER;
+
+/* 非终结符 */
+
+non terminal           expr_list, expr_part;
+
+non terminal Integer expr, term, factor;
+
+/* 优先级 */
+
+precedence left PLUS,  MINUS;
+
+precedence left TIMES, DIVIDE, MOD;
+
+precedence left UMINUS;
+
+/* 文法 */
+
+expr_list ::= expr_list expr_part 
+
+| expr_part;
+
+expr_part ::= expr SEMI;
+
+expr       ::= expr PLUS expr 
+
+           | expr MINUS expr  
+
+           | expr TIMES expr  
+
+           | expr DIVIDE expr  
+
+           | expr MOD expr 
+
+      | MINUS expr %prec UMINUS
+
+      | LPAREN expr RPAREN
+
+      | NUMBER
+
+  ;
+</code></pre>
+<p>接下来我们会详细讲解这个规范文件的每一部分。从上面这个例子可以很容易看出规范文件一般包括四个主要的部分。</p>
+<p>第一部分包括一些预处理及各种声明，以指定如何构建编译器，同时也包含了一些运行时代码，在这个例子的第一部分，我们指定解析器应导入java_cup.runtime包内的所有类，然后给出了一小段初始化代码及一些调用扫描器来获得下一个符号的代码。</p>
+<p>第二部分声明终结符和非终结符，以及每个符号对应的类型，这个例子中，终结符被声明为无类型及Integer类型两种，这个类型指的是终结符或非终结符所代表的值的类型，如果没有指定类型，它们也就没有值。</p>
+<p>第三部分指定终结符的优先级和结合性，这部分最后出现的终结符拥有最高的优先级。</p>
+<p>第四部分描述系统的语法。</p>
+<p></p>
+<p>使用CUP解析器生成器根据这个规范文件生成一个解析器：如果这个规范保存在一个名为parser.cup的文件中，我们可以用下面这样的命令调用CUP：</p>
+<pre><code> java -jar java-cup-11b.jar parser.cup 
+</code></pre>
+<p>系统会生成两个Java源文件sym.java和parser.java保存解析器的两个部分(这两个名字可以通过命令行选项更改，下面会提到)。正如你所期望的那样，这两个文件分别保存了sym和parser类。sym类包含了一系列的常量声明，每一个声明代表一个终结符，它可以被扫描器用来指定扫描到的符号，例如这样一个代码“return new Symbol(sym.SEMI);”。parser类则实现了解析器本身。</p>
+<p></p>
+<p>上面的规范尽管能生成一个完整的解析器，但是不执行任何语义动作，它仅仅指示一次解析是成功还是失败。为了计算和打印每个表达式的结果，我们必须在规范文件中的不同位置嵌入携带语义动作的Java代码。在CUP规范中语义动作被包含在代码串中，即{:和:}之间的内嵌代码，例如上面例子中的init with和scan with子句。一般而言，系统会记录{:和:}中的所有符号，但是不去检查它们是否为有效的Java代码。</p>
+<p></p>
+<p>我们所举例子的一个更加完整的CUP规范(在不同位置内嵌了代表语义动作的java代码)如下所示：</p>
+<pre><code>//简单算术表达式计算器的CUP规范(包含语义动作)
+
+import java_cup.runtime.*;
+
+/*初始设置、设定词法扫描器   */
+
+init with {: scanner.init();              :};
+
+scan with {: return scanner.next_token(); :};
+
+/*终结符 (词法扫描器返回的符号).  */
+
+terminal           SEMI, PLUS, MINUS, TIMES, DIVIDE, MOD;
+
+terminal           UMINUS, LPAREN, RPAREN;
+
+terminal Integer   NUMBER;
+
+/* Non-terminals */
+
+non terminal            expr_list, expr_part;
+
+non terminal Integer    expr;
+
+/* 非终结符*/
+
+precedence left PLUS, MINUS;
+
+precedence left TIMES, DIVIDE, MOD;
+
+precedence left UMINUS;
+
+/* 语法 */
+
+expr_list   ::= expr_list expr_part | expr_part;
+
+expr_part  ::= expr:e  {: System.out.println(&quot;= &quot; + e); :}  SEMI;
+
+expr       ::= expr:e1  PLUS    expr:e2 {: RESULT = new Integer(e1.intValue() + e2.intValue()); :} 
+
+   | expr:e1  MINUS  expr:e2 {: RESULT = new Integer(e1.intValue() - e2.intValue()); :} 
+
+   | expr:e1  TIMES   expr:e2 {: RESULT = new Integer(e1.intValue() * e2.intValue()); :} 
+
+   | expr:e1  DIVIDE  expr:e2 {: RESULT = new Integer(e1.intValue() / e2.intValue()); :} 
+
+   | expr:e1  MOD    expr:e2 {: RESULT = new Integer(e1.intValue() % e2.intValue()); :} 
+
+   | NUMBER:n {: RESULT = n; :} 
+
+   | MINUS expr:e{: RESULT = new Integer(0 - e.intValue()); :} %prec UMINUS
+
+   | LPAREN expr:e RPAREN{: RESULT = e; :} 
+
+   ;
+</code></pre>
+<blockquote>
+<p>什么是%prec<br>
+https://blog.csdn.net/skywuuu/article/details/112069830</p>
+<p>nonassoc：指明没有结合性</p>
+</blockquote>
+<p>其中我们会看到一些改变，最重要的是在规范的不同位置加入了被{:和:}包围的用于执行语义动作的内嵌代码串。除此之外，还在不同规则的右边加入了一些标签，例如</p>
+<pre><code>expr:e1 PLUS expr:e2{: RESULT = new Integer(e1.intValue() + e2.intValue()); :}
+</code></pre>
+<p>第一个非终结符expr添加了标签e1，第二个非终结符添加了标签e2。每条规则的值被隐含标记为RESULT。</p>
+<p>出现在每条规则中的符号，在解析堆栈都使用一个Symbol类型的对象来表示，它们的标签则代表这些对象中的实例变量的值。在表达式</p>
+<p>对于每个标签，将会有两个用户可访问的变量被声明，分别称之为标签的左值和右值，它们的值可以传送给内嵌代码串，这样用户就可以定位每个终结符或非终结符在输入流中的位置。每个变量的名字是标签加上left或right，例如对于规则expr:e1 PLUS expr:e2，用户不仅可以访问变量e1和e2，也可访问e1left、e1right、e2left及e2right，而且它们四个都是int型的变量。</p>
+<p></p>
+<p>创建一个可以工作的解析器的最后一个步骤是创建一个词法扫描器(有时也被称之为词法分析器)。这个程序负责读取输入字符串，去除空格和注释，找出每个词在语法中代表的终结符，最后向解析器返回代表这些终结符的Symbol对象。通过调用扫描器函数就可以获得这些终结符，例如解析器调用scanner.next_token()方法，扫描器则返java_cup.runtime.Symbol类型的变量（这种变量与CUP先前版本的java_cup.runtime.symbol类型的变量有很大的不同）。每个Symbol对象携带一个Object类型的实例变量，其类型应该在词法扫描器中被指明，变量则存储了该对象的值，因此其类型应该与该终结符或非终结符在规范文件中被定义时声明的类型一致。在上面的例子中，如果词法分析器要返回一个NUMBER符号的值，应该定义一个Symbol对象包含一个表示Integer类型对象变量。与无值终结符或非终结符对应的Symbol对象中相应的变量会储存一个空值。</p>
+<p>规范文件中init with 字句中包含代码，会在获取任何符号之前被执行，任何符号都将通过scan with子句中的代码获取。除此之外，调用扫描器的具体方式由你自己决定，但是每次调用扫描器获取符号的函数都应该返回一个java_cup.runtime.Symbol(或其子类)的对象。这些Symbol对象将被标注上解析器信息并存储在一个栈中，重用这些对象会导致解析器注释信息混乱。版本CUP0.10j会检测Symbol对象是否被重用，如果检测到Symbol对象被重用，解析器将会抛出一个错误提醒你改正你的扫描器。</p>
+<p>在下一节中，将会对CUP规范各部分进行更详细和正式讲述。第3节讲述使用CUP系统的各种选项。第4节讲述如何定制CUP解析器。第5节讲述CUP0.10j中增加的词法扫描器接口。第6节讲述错误恢复方面的内容。第7节对本手册进行总结。</p>
+<p></p>
+<h3 id="第二章-规范语法">第二章 规范语法</h3>
+<p></p>
+<p>由于我们已经接触到了一个简单的例子，现在就给出CUP规范文件各部分最为完整的描述。一个规范文件包含四个部分共八项内容(其中大部分是可选项)，即：包定义及引用、用户代码区、符号列表(终结符和非终结符)、优先级声明、语法。每一部分必须按上面给出的顺序进行书写(附录A给出了规范文件一个完整示例)。每一部分的具体细节会在下面几个小节中描述。</p>
+<p></p>
+<p><strong>包定义和引用规范</strong></p>
+<p>规范文件以package和import声明开头，这两个声明是可选的。这些声明与标准Java程序中的package和import声明有相同的语法，并扮演相同的角色。package的声明形式</p>
+<pre><code>package name; 
+</code></pre>
+<p>其中name是一个Java包名标示符，有时候可能会由几个用“.”分割的单词组成。一般说来，CUP采用了Java的词法规范。因此Java的注释风格在CUP中被支持，标示符也类似于Java中的以字母、<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi mathvariant="normal">、</mi><mi mathvariant="normal">_</mi><mi mathvariant="normal">开</mi><mi mathvariant="normal">头</mi><mi mathvariant="normal">后</mi><mi mathvariant="normal">节</mi><mi mathvariant="normal">零</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">或</mi><mi mathvariant="normal">多</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">字</mi><mi mathvariant="normal">母</mi><mi mathvariant="normal">、</mi><mi mathvariant="normal">数</mi><mi mathvariant="normal">字</mi><mi mathvariant="normal">、</mi></mrow><annotation encoding="application/x-tex">、\_开头后节零个或多个字母、数字、</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.43056em;vertical-align:-0.31em;"></span><span class="mord cjk_fallback">、</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord cjk_fallback">开</span><span class="mord cjk_fallback">头</span><span class="mord cjk_fallback">后</span><span class="mord cjk_fallback">节</span><span class="mord cjk_fallback">零</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">或</span><span class="mord cjk_fallback">多</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">字</span><span class="mord cjk_fallback">母</span><span class="mord cjk_fallback">、</span><span class="mord cjk_fallback">数</span><span class="mord cjk_fallback">字</span><span class="mord cjk_fallback">、</span></span></span></span>、_标识符规范。package声明之后，可以再声明零个或多个import语句。正如在Java程序中的形式一样，CUP中的import声明形式可以是：</p>
+<pre><code>import package_name.class_name;
+</code></pre>
+<p>或者</p>
+<pre><code>import package_name.*;
+</code></pre>
+<p>包声明语句表示系统生成的sym和parser文件将会放入哪个包内，import声明会被原封不动地放在系统生成的parser源文件中，以使被导入包内的各种名字可以在内嵌的语义动作代码内直接使用。</p>
+<p></p>
+<p><strong>用户代码区</strong></p>
+<p>package和import声明之后，是一系列用户代码，这些代码同样是可选的，它们可以作为解析器的部分代码被放在生成的parser文件内(查看第四章获取详细的parser使用这些代码的方式)。作为parser规范文件的一部分，用户语义动作代码被存放在一个独立的非公有化类内，第一个action code声明区允许其中的代码存放在这个类内。文法中的内嵌代码使用的例程和变量应该被放置在这个区域内(一个典型的例子是符号表操作例程)。声明的形式是：</p>
+<p>action code{:……:};</p>
+<p>{:……:}中的代码串会直接存放action class声明的类中。</p>
+<p></p>
+<p>action code之后是一个parser code声明，这部分是可选的。这个声明内的方法和变量将会被直接存放在解析器类内，尽管这个声明看起来非常普通，但是在定制解析器的时候将会非常有用。它可以将词法扫描方法包含在解析器内或者重载默认的错误报告例程。这个声明的形式和action code的声明形式非常类似，即：</p>
+<p>parser code {: ... :};</p>
+<p>{: ... :}中的代码串被直接存放在解析器类中。</p>
+<p></p>
+<p>接下来是init with声明，同样是可选的，其形式是：</p>
+<p>init with {: ... :};</p>
+<p>这个声明内的代码会在解析器获取第一个符号之前被执行。通常，这些代码用来初始化词法扫描器，以及执行语义动作时会用到的一些表或其他数据结构。这些代码在parser类内被构造成一个无返回值的方法。</p>
+<p></p>
+<p>规范文件用户代码区的最后一个可选部分表示解析器如何从词法扫描器内获取下一个符号，其形式：</p>
+<p>scan with{: ... :};</p>
+<p>正如init子句一样，其内的代码串会在解析器内存放在一个方法内，所不同的是，这个方法会有一个java_cup.runtime.Symbol类型的返回值，所以sacn with内放置的代码应该返回这种类型的一个值。在第5章中将会讲述如果scan with字句被忽略时，系统默认执行的动作。</p>
+<p></p>
+<p>对于CUP0.10j，action code，parser code，init with，scan with可以以任意顺序出现，但是他们必须放置在符号列表之前。</p>
+<p></p>
+<p>符号列表</p>
+<p>用户代码区之后，即是符号列表区，这部分是规范文件必写内容。这些声明负责为在语法中出现的终结符和非终结符命名和指定类型。正如上面提到的一样，每个终结符和非终结符在运行期由一个Symbol对象表示。以终结符为例来说，这些对象由词法扫描器返回并存储在解析器堆栈中，扫描器应该将终结符的值存入Symbol对象中对应类型的实例变量中。以非终结符为例来说，一旦有些右值规则被解析到，它会替换掉解析堆栈中的一系列Symbol对象。为了告知解析器应该将哪个符号指定为何种类型的对象，应该在terminal， non-terminal后进行声明，其声明形式为：</p>
+<pre><code>terminal      classname  name1, name2, ...;
+
+non terminal  classname  name1, name2, ...;
+
+terminal                name1, name2, ...;
+
+non terminal            name1, name2, ...;
+</code></pre>
+<p>其中classname可以是由“.”分割的复合名，指定的classname就代表其后的终结符或非终结符的类型。当用标签访问符号的值时，用户应该使用该符号被声明的类型。classname可以是任何类型，如果终结符和非终结符未指定任何类型，那么这种类型的符号就不能携带值，引用该种类型符号的标签也被系统设定为空值。对于CUP版本0.10j，你也可以将非终结符指定为“nonterminal”(注意其中没有空格)或者“non terminal”(其中包含空格)。</p>
+<p></p>
+<p>终结符和非终结符的名字不可以使用CUP的保留字。CUP的保留字包括：“code”，“action”，“parser”，“terminal”，“non”，“nonterminal”，“init”，“scan”，“with”，“start”，“precedence”，“left”，“right”，“nonassoc”，“import”，“package”。</p>
+<p></p>
+<p>优先级和结合性</p>
+<p>规范文件的第三部分，可选部分，用于指定终结符的优先级和结合性。这对于解析不明确的语法非常有用，正如在上面例子中所看到的那样。有三种类型的优先级和结合性声明：</p>
+<pre><code>precedence left     terminal[, terminal...];
+
+precedence right    terminal[, terminal...];
+
+precedence nonassoc terminal[, terminal...];
+</code></pre>
+<p>用逗号隔开的列表表示这些终结符应该具有precedence指定的结合性和优先级级别。precedence指定的优先级与其出现的顺序相反，越早出现的级别越低，越晚出现的级别越高。因此，下面的声明表示乘法和除法具有较高的优先级，而加法和减法具有较低的优先级。</p>
+<pre><code>precedence left  ADD,  SUBTRACT;
+
+precedence left  TIMES,  DIVIDE;
+</code></pre>
+<p></p>
+<p>使用优先级声明，可以解决移进/规约问题。例如，给上面例子一个这样的输入：3+4*8，解析器就不知道是应当对3+4进行规约，还是将*移进堆栈。然而，由于*比+的优先级高，*应该被移进堆栈，最终乘法将早于加法被运算。</p>
+<p></p>
+<p>CUP系统根据这样的声明，为每个终结符赋予相应的优先级。没有声明优先级的终结符的优先级被认为是最低的。CUP也对由终结符和非终结符组成的规则赋予一定的优先级，相应规则的优先级被认为与规则最后出现的终结符的优先级相同，如果某条规则中没有终结符，那这条规则就被认为具有最低的优先级。例如，这样一条规则：expr::=expr TIMES expr，会被认为与TIMES具有相同的优先级。在解析的过程中，如果出现移进/规约(shift/reduce)冲突，解析器将决定是将一个具有较高的优先级终结符移进堆栈，还是认为规则具有较高的优先级而将其解析。如果一个终结符具有较高的优先级，它将被移进堆栈，而如果一条规则具有较高的优先级，它就会被规约(即被解析器解析)。如果两者具有相同的优先级，那么终结符的结合性将决定解析器的执行动作。</p>
+<p></p>
+<p>每个终结符的结合性声明同样是在优先级与结合性部分指定的。有三种类型的结合性，分别是：左结合(left)、右结合(right)、不结合(nonassoc)。结合性同样用来处理移进/规约(shift/reduce)冲突，但是仅当终结符与规则具有相同的优先级时才发挥作用，在这种情况下，如果一个可以执行移进动作的终结符是左结合的，就会执行规约动作。这意味这，如果输入的是加法串3+4+5+6+7，以3+4开始，解析器将会从左向右一直执行规约动作。如果终结符的结合性是右结合，那么解析器会将其移进堆栈中，规约动作将会按照从右向左的顺序进行。因此，如果PLUS的结合性被声明为右结合，那么对于上面的加法串，6+7将会是第一个被执行规约动作。如果一个终结符被声明为不结合，如果有连续两个具有相同优先级而且结合性为不结合的终结符同时出现，将会发生错误。这对于比较运算非常有用，例如，输入串为6==7==8==9，解析器就会产生一个错误。如果“==”被声明为不结合，就会有一个错误发生。</p>
+<p></p>
+<p>所有未使用优先级与结合型声明的终结符，被认为具有最低的优先级。如果发生一个无法解决的移进/规约错误，CUP系统会报告一个错误。</p>
+<p></p>
+<p>语法</p>
+<p>CUP声明的最后一个部分是语法。这个部分往往由一个声明开始，这个声明是可选的，其声明形式为：</p>
+<pre><code>start with non-terminal;
+</code></pre>
+<p>这代表哪个非终结符是start或者goal非终结符。如果没有明确声明这样一个非终结符，则语法第一条规则的左边的非终结符将被指定为开始或目标非终结符。在每次成功解析后，CUP会返回一个java_cup.runtime.Symbol类型的对象，这个对象中的实例变量包含解析到的最终结果。</p>
+<p></p>
+<p>语法往往开始于start声明之后，每条规则最左边是一个非终结符，接着是一个“::=”符号，紧跟着是零个或多个动作、终结符、非终结符，再接着是一个可选的语境优先级分配，最后由一个分号结束。</p>
+<p></p>
+<p>每个在右边的符号，都可以用一个标签标记，也可以不标记。标签放在符号的右边，与符号用一个冒号(:)隔开。标签名在每条规则中必须是唯一的，定义标签后，就可以在动作代码中使用用来表示所代表符号在运行期的值。一旦定义了标签，就有两个变量紧接着被定义，分别是标签名加上left和标签名加上right，这两个变量都是int类型的变量，分别代表该符号在输入文件的行列位置，这两个值必须由词法扫描器在扫描的过程中初始化。最后left和right值被赋给该符号所在的规则最终被规约到的非终结符。</p>
+<p></p>
+<p>如果一个非终结符可以由多种规则定义，那么这些规则应该放在一块声明。在这种情况下，有一个终结符开始，接着是一个“::=”符号，紧接着就是多条规则，每条规则由“|”分开，所有的规则结束后，由一个分号终止。</p>
+<p></p>
+<p>语义动作在每条规则的右边出现，表现为内嵌java代码串，放置在{:……:}中间。当代码串所在的规则被解析到时，代码串就由parser负责执行。注意，解析器在将要规约一条规则的时候，会再从输入文件中读一个符号，因为解析器为了更准确的解析规则，需要更多的预读字符。</p>
+<p></p>
+<p>在被分配优先级的规则右边的所有符号和动作之后是语境优先级分配。语境优先级分配，允许一条规则不必依赖于规则最后一个终结符的优先级。上面解析器规范样例就给出了一个很好的例子：</p>
+<pre><code>precedence left PLUS, MINUS;
+
+precedence left TIMES, DIVIDE, MOD;
+
+precedence left UMINUS;
+
+expr ::=    MINUS expr:e{: RESULT = new Integer(0 - e.intValue()); :} 
+
+                  %prec UMINUS
+</code></pre>
+<p>这里，这条规则的优先级被声明为与UMINUS的优先级相同，因此解析器可以根据MINUS是一个一元符号或者是真正的减法操作，而给MINUS两个不同的优先级。</p>
+<p></p>
+<h3 id="第三章使用cup">第三章使用CUP</h3>
+<p>正如上面提到的，CUP是由Java开发的。为了调用CUP系统，你应该使用Java解释器(命令行中的java指令)调用静态方法java_cup.Main()，向其传递一组包含选项的字符串。假设是在类Unix系统中，最简单的方法，就是直接用下面这样一条指令在命令行中调用：</p>
+<p>java java_cup.Main options &lt; inputfile</p>
+<p>一旦开始运行，CUP需要从标准终端获得一个规范文件，并产生两个Java源文件作为输出。从CUP版本0.10k开始，最终的命令行参数可以是一个文件名，在这种情况下，CUP将会从指定的文件中读入规范文件，而不是从标准终端上获得。</p>
+<p></p>
+<p>除了规范文件外，CUP的行为可以通过设定不同的选项来改变。合法的选项保存在Main.java的文档中，下面给出这些选项的说明：</p>
+<p>-package name</p>
+<p>指定生成的parser和sym类应该被放置在的包的名字，默认情况下，及不使用这个选项，这些类将被放置在规范文件所在的目录下。</p>
+<p>-parser name</p>
+<p>指定生成的解析器文件的名字。默认情况下，解析器被命名为parser。</p>
+<p>-symbols name</p>
+<p>指定生成的符号表的名字。默认情况下，其名字为sym。</p>
+<p>-interface</p>
+<p>将符号表生成为接口，而不是默认情况下的类。</p>
+<p>-nonterms</p>
+<p>在符号表类内生成代表非终结符的常量，尽管解析器并不需要这些常量，然而在调试一个生成的解析器时，可以访问到这些常量，将会得到非常有用信息。</p>
+<p>-expect number</p>
+<p>在系统根据规范文件创建解析器时，在运行期可能会检测到一些含糊的规则，被称之为冲突(conflict)。一般情况下，解析器不能决定是应该移进(读入下一个符号)还是应该规约(用一条规则的左边的符号代替其右边的定义的规则，即解析一条规则)。这通常被称之为移进/规约冲突(shift/reduce conflict)。类似的，解析器面对两条不同的规则不能决定应该规约哪一条时，就会发生规约/规约冲突(reduce/reduce conflict)。通常情况下，如果发生一个或多个这样的冲突，系统就会中断构造解析器。在一个深思熟虑的系统中，在这些冲突的发生时，中断系统将会是非常有益的。CUP参照了YACC的做法，用移进解决移进/规约冲突，对于规约/规约冲突优先规约“最高优先级”规则(即在规范中最先被定义的规则)。为了使系统能够自动的处理这些冲突，应该在-expect选项中给出有多少这样的冲突是被允许的。已经用优先级和结合性解决的冲突，在生成系统的时候不会报告。</p>
+<p>-compact_red</p>
+<p>使用此选项可以实现对表压缩优化。特别的，使用这个选项，可以将解析动作表中每行最普通的规约条目作为该行的默认条目，这样可以明显的节约解析表需要的空间，否则解析表会增长很大。这种优化可以将所有的错误条目放置到一行中，这一行默认使用一条规约条目，这可能看起来有些奇怪，如果没有正确的处理，就有可能使生成的解析器无法正常工作。可是，这样一些改变确实继承自LALR解析器(与标准LR解析器相比)，而且由此生成的解析器仍然无法越过第一条可以被检测到错误的条目。然而，这种解析器在检测到错误之前会做一些额外的错误规约，因此可能会减弱解析器错误恢复的能力(如果要相信了解这种压缩技术，请参看引用[2]244-247页，或者引用[3]190-194页)。</p>
+<p>这个选项通常应用在Java字节码中的表级压缩优化。然而CUP0.10h引入了一种字符串编码方法。</p>
+<p>-nowarn</p>
+<p>这个选项，不报告系统产生的所有警告信息(与错误信息相对)。</p>
+<p>-nosummary</p>
+<p>通常情况下，在解析结束的时候，系统会打印一个总结列表，包括终结符及非终结符的数量，解析状态等。这个选项，会阻止系统打印上述信息。</p>
+<p>-progress</p>
+<p>这个选项，使系统打印一些代表系统进度的简短信息，系统进度通过解析器生成过程的各个部分获得。</p>
+<p>-dump_grammar</p>
+<p>-dump_states</p>
+<p>-dump_tables</p>
+<p>-dump</p>
+<p>上面这些选项使系统分别显示人类可读的语法、解析器构建状态(在解决解析冲突的时候经常用到)及解析表(很少被用到)。-dump这个选项可以使系统生成上述所有的信息。</p>
+<p>-time</p>
+<p>这个选项，将会向系统产生的信息中加入详细的时间信息，这通常仅仅对系统的维护进程有用。</p>
+<p>-debug</p>
+<p>这个选项，会使系统生成其运行时产生的大量的内部调试信息。这些信息通常只对系统的维护进程有用。</p>
+<p>-nopositions</p>
+<p>这个选项，会阻止CUP生成代码将终结符的行(left)和列(right)值传送给非终结符，以及从非终结符传送给终结符。如果这样的行和列值在解析器中不使用，系统就不会生成这些位置信息，从而使系统节约一些运行期的运算量。这个选项使系统不再包含行(left)和列(right)的变量，因此一些引用这些变量的代码会使系统产生错误。</p>
+<p>-noscanner</p>
+<p>CUP0.10j改进了词法扫描器(scanner)的集成，并推出了一种新的接口，java_cup.runtime.Scanner。默认情况下，生成的解析器需要使用这个接口，这意味着这些解析器将不能使用比0.10j更老的版本的CUP运行时库(java_cup.runtimes)。如果你的解析器不使用这种新的词法扫描器(scanner)接口提供的功能，你就应该使用-noscanner选项来阻止解析器对java_cup.runtime.Scanner接口的引用，从而保持与CUP老版本的兼容。对于大多数人来说，是没有理由这样做的。</p>
+<p>-version</p>
+<p>在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。</p>
+<h3 id="第四章-定制解析器">第四章 定制解析器</h3>
+<p>每个生成的解析器，都包含三个类。sym类(可以使用-symbols选项改名)包含了一系列的int型常量，每个代表一个终结符，如果使用了-nonterms选项，也可以将非终结符(non-terminals)包含进来。parser类(可以使用-parser选项重命名)事实上包含两个类定义，其中parser类为公共类真正的实现了解析器，另一个CUP<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>a</mi><mi>c</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi><mi mathvariant="normal">为</mi><mi mathvariant="normal">非</mi><mi mathvariant="normal">公</mi><mi mathvariant="normal">有</mi><mi mathvariant="normal">类</mi><mi mathvariant="normal">囊</mi><mi mathvariant="normal">括</mi><mi mathvariant="normal">了</mi><mi mathvariant="normal">规</mi><mi mathvariant="normal">范</mi><mi mathvariant="normal">文</mi><mi mathvariant="normal">件</mi><mi mathvariant="normal">中</mi><mi mathvariant="normal">内</mi><mi mathvariant="normal">嵌</mi><mi mathvariant="normal">的</mi><mi mathvariant="normal">所</mi><mi mathvariant="normal">有</mi><mi mathvariant="normal">语</mi><mi mathvariant="normal">义</mi><mi mathvariant="normal">动</mi><mi mathvariant="normal">作</mi><mi mathvariant="normal">代</mi><mi mathvariant="normal">码</mi><mi mathvariant="normal">以</mi><mi mathvariant="normal">及</mi><mi>a</mi><mi>c</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi><mi mathvariant="normal"> </mi><mi>c</mi><mi>o</mi><mi>d</mi><mi>e</mi><mi mathvariant="normal">声</mi><mi mathvariant="normal">明</mi><mi mathvariant="normal">中</mi><mi mathvariant="normal">包</mi><mi mathvariant="normal">含</mi><mi mathvariant="normal">的</mi><mi mathvariant="normal">代</mi><mi mathvariant="normal">码</mi><mi mathvariant="normal">。</mi><mi mathvariant="normal">除</mi><mi mathvariant="normal">了</mi><mi mathvariant="normal">用</mi><mi mathvariant="normal">户</mi><mi mathvariant="normal">支</mi><mi mathvariant="normal">持</mi><mi mathvariant="normal">代</mi><mi mathvariant="normal">码</mi><mi mathvariant="normal">外</mi><mi mathvariant="normal">，</mi><mi mathvariant="normal">这</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">类</mi><mi mathvariant="normal">包</mi><mi mathvariant="normal">含</mi><mi mathvariant="normal">一</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">方</mi><mi mathvariant="normal">法</mi><mi mathvariant="normal">，</mi><mi>C</mi><mi>U</mi><mi>P</mi></mrow><annotation encoding="application/x-tex">action为非公有类囊括了规范文件中内嵌的所有语义动作代码以及action code声明中包含的代码。除了用户支持代码外，这个类包含一个方法，CUP</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.69444em;vertical-align:0em;"></span><span class="mord mathdefault">a</span><span class="mord mathdefault">c</span><span class="mord mathdefault">t</span><span class="mord mathdefault">i</span><span class="mord mathdefault">o</span><span class="mord mathdefault">n</span><span class="mord cjk_fallback">为</span><span class="mord cjk_fallback">非</span><span class="mord cjk_fallback">公</span><span class="mord cjk_fallback">有</span><span class="mord cjk_fallback">类</span><span class="mord cjk_fallback">囊</span><span class="mord cjk_fallback">括</span><span class="mord cjk_fallback">了</span><span class="mord cjk_fallback">规</span><span class="mord cjk_fallback">范</span><span class="mord cjk_fallback">文</span><span class="mord cjk_fallback">件</span><span class="mord cjk_fallback">中</span><span class="mord cjk_fallback">内</span><span class="mord cjk_fallback">嵌</span><span class="mord cjk_fallback">的</span><span class="mord cjk_fallback">所</span><span class="mord cjk_fallback">有</span><span class="mord cjk_fallback">语</span><span class="mord cjk_fallback">义</span><span class="mord cjk_fallback">动</span><span class="mord cjk_fallback">作</span><span class="mord cjk_fallback">代</span><span class="mord cjk_fallback">码</span><span class="mord cjk_fallback">以</span><span class="mord cjk_fallback">及</span><span class="mord mathdefault">a</span><span class="mord mathdefault">c</span><span class="mord mathdefault">t</span><span class="mord mathdefault">i</span><span class="mord mathdefault">o</span><span class="mord mathdefault">n</span><span class="mord"> </span><span class="mord mathdefault">c</span><span class="mord mathdefault">o</span><span class="mord mathdefault">d</span><span class="mord mathdefault">e</span><span class="mord cjk_fallback">声</span><span class="mord cjk_fallback">明</span><span class="mord cjk_fallback">中</span><span class="mord cjk_fallback">包</span><span class="mord cjk_fallback">含</span><span class="mord cjk_fallback">的</span><span class="mord cjk_fallback">代</span><span class="mord cjk_fallback">码</span><span class="mord cjk_fallback">。</span><span class="mord cjk_fallback">除</span><span class="mord cjk_fallback">了</span><span class="mord cjk_fallback">用</span><span class="mord cjk_fallback">户</span><span class="mord cjk_fallback">支</span><span class="mord cjk_fallback">持</span><span class="mord cjk_fallback">代</span><span class="mord cjk_fallback">码</span><span class="mord cjk_fallback">外</span><span class="mord cjk_fallback">，</span><span class="mord cjk_fallback">这</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">类</span><span class="mord cjk_fallback">包</span><span class="mord cjk_fallback">含</span><span class="mord cjk_fallback">一</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">方</span><span class="mord cjk_fallback">法</span><span class="mord cjk_fallback">，</span><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="mord mathdefault" style="margin-right:0.10903em;">U</span><span class="mord mathdefault" style="margin-right:0.13889em;">P</span></span></span></span>do_action，包含了一个大的switch语句，用来选择和执行各种各样的支离破碎的用户指定的语义动作代码。一般情况下，所有的名字都以CUP$为前缀，以保留作为CUP生成的内部代码使用。</p>
+<p></p>
+<p>parser类包含了实际的生成的解析器，该类是java_cup.time.lr_parser的子类，java_cup.time.lr_parser类实现了一个通用的器的表驱动框架。生成的parser类，为通用的LR解析器表驱动框架提供了一系列的表。其中的三个表如下：</p>
+<p>规则表</p>
+<p>为语法中的每条规则，提供了左值非终结符的数量，以及右侧符号的长度。</p>
+<p>动作列表</p>
+<p>在每个现行符号在遇到一种状态时的动作，其中包括移进、规约、错误。</p>
+<p>reduce-goto表</p>
+<p>在每次规约之后指示应该移进哪个状态。(注意：动作列表和reduce-goto表不是采用简单的数组存储的，而是使用一种压缩的链表结构，这样可以在很大程度上节约存储空间，详情请参阅运行时系统源代码。)</p>
+<p></p>
+<p>除了解析表外，生成的(或继承)的代码会提供一系列的方法来定制生成的解析器。这些方法中的一些是取自规范文件中的部分代码，使用这种方法可以直接定制解析器。另一些方法则是由lr_parser基类提供的，这些方法在新版本中(通过parser code声明)可以被覆盖以定制解析器系统。能够被定制的方法如下所示：</p>
+<p>Public void user_init():</p>
+<p>这个方法被解析器首先调用来从词法扫描器获取第一个符号，这个方法的主体包含规范文件中的init with字句。</p>
+<p>Public java_cup.runtime.Symbol scan()</p>
+<p>这个方法将词法扫描器囊括在内，每次解析器需要一个新的终结符时就会调用这个方法。这个方法的主体在当前版本包含规范文件中的scan with字句。</p>
+<p>public java_cup.runtime.Scanner getScanner()：</p>
+<p>返回默认的词法扫描器。参看第五章。</p>
+<p>public void setScanner(java_cup.runtime.Scanner s)：</p>
+<p>设置默认的词法扫描器。参看第五章。</p>
+<p>public void report_error(String message, Object info)：</p>
+<p>每当要发布错误信息时，都应当调用该方法。改方法的默认实现是，第一个参数提供需要打印到错误流上的文本，第二个参数则被忽略。为了实现一个更复杂的错误报告机制，典型的做法是重写这个方法。</p>
+<p>public void report_fatal_error(String message, Object info)：</p>
+<p>当一个不可恢复的错误发生时，应当调用这个方法。它通过调用report_error()方法报告错误信息，然后调用done_parsing()方法中断解析，最后抛出异常。一般而言，当解析过程应当被提前终止的时候都应当调用done_parsing()方法。</p>
+<p>public void syntax_error(Symbol cur_token)：</p>
+<p>一旦一个语法错误被检查到、尝试错误恢复之前，语法解析器将调用这个方法。这个方法的默认实现是，调用report_error(&quot;Syntax error&quot;, null);方法。</p>
+<p>public void unrecovered_syntax_error(Symbol cur_token)：</p>
+<p>当解析器遇到无法恢复的语法错误时，调用这个方法。其默认的实现是：report_fatal_error(&quot;Couldn't repair and continue parse&quot;, null);.</p>
+<p>protected int error_sync_size()：</p>
+<p>这个方法返回解析器在成功的认定一个错误时应该成功的解析多少个符号。默认的实现是返回3。低于2的值不被推荐。详细情况请参看错误恢复一章。</p>
+<p></p>
+<p>解析过程是由public Symbol parse()方法实现的。这个方法首先取得每个解析表的引用，接着初始化一个CUP$action对象(通过调用protected void init_actions()方法)；然后调用user_init()方法,接着通过调用scan()方法取得第一个预读符号；然后开始解析，知道done_parsing()方法被调用(这个方法是被自动调用的，例如，当解析一个规则后)。它会返回一个包含开始规则值的实例变量的符号对象，或者null如果没有值需要返回。</p>
+<p></p>
+<p>除了普通的解析器之外，系统提供了解析器的带调试功能的版本。它的功能跟普通的解析器没有差别，只不过会默认通过调用public void debug_message(String mess)方法将调试信息打印到错误输出流(System.err)。</p>
+<p>基于以上的例程，可以通过下面的代码调用一个CUP解析器。</p>
+<pre><code>      /* create a parsing object */
+
+      parser parser_obj = new parser();
+
+      /* open input files, etc. here */
+
+      Symbol parse_tree = null;
+
+      try {&lt;!-- --&gt;
+
+          if (do_debug_parse)
+
+             parse_tree = parser_obj.debug_parse();
+
+          else
+
+          parse_tree = parser_obj.parse();
+
+      } catch (Exception e) {&lt;!-- --&gt;
+
+        /* do cleanup here - - possibly rethrow e */
+
+      } finally {&lt;!-- --&gt;
+
+    /* do close out here */
+
+      }
+</code></pre>
+<h3 id="第五章-扫描器借口">第五章 扫描器借口</h3>
+<p>鉴于在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。java_cup.runtime.Scanner接口，其定义如下：</p>
+<pre><code>package java_cup.runtime;
+
+public interface Scanner {&lt;!-- --&gt;
+
+    public Symbol next_token() throws java.lang.Exception;
+
+}
+</code></pre>
+<p>除了在第四章中介绍的方法之外，java_cup.runtime.lr_parser还拥有两个存取方法，setScanner() 和 getScanner()。Scan()方法的默认实现如下：</p>
+<pre><code>public Symbol scan() throws java.lang.Exception {&lt;!-- --&gt;
+
+    Symbol sym = getScanner().next_token();
+
+    return (sym!=null) ? sym : new Symbol(EOF_sym());
+
+  }
+</code></pre>
+<p>生成的解析器也拥有一个带Scanner参数的构造器，然后调用setScanner()设定扫描器。在大多数情况下，init with和scan with会被忽略。你可以简单的创建一个解析器，使其引用到你所期望的扫描器，代码如下：</p>
+<p>parser parser_obj = new parser(new my_scanner());</p>
+<p>或者在解析器被创建之后再设定扫描器，代码如下：</p>
+<pre><code>/* create a parsing object */
+
+parser parser_obj = new parser();
+
+/* set the default scanner */
+
+parser_obj.setScanner(new my_scanner());
+</code></pre>
+<p></p>
+<p>需要注意的是，解析器使用预读策略，不建议在解析的过程中重新设定词法扫描器。如果在没有事先调用setScanner()设定扫描器，就调用sann()方法，系统将会抛出一个NullPointerException异常。</p>
+<p></p>
+<p>作为一个词法扫描器集成的例子，下面给出了使用JLex或者JFlex生成扫描器的时候应该添加的三行代码：</p>
+<pre><code>%implements java_cup.runtime.Scanner
+
+%function next_token
+
+%type java_cup.runtime.Symbol
+</code></pre>
+<p>JLex 1.2.5及更新的版本中的指令%cup是对以上三行代码的缩减。在解析器中调用JLex扫描器非常的非常简单，如下所示：</p>
+<p>parser parser_obj = new parser( new Yylex( some_InputStream_or_Reader));</p>
+<p></p>
+<p>注意：CUP在没有问题的情况下会处理JLex/JFLex遇到文件结束符(EOF)返回空值的规范，因此在JLex规范文件中不再需要%eofval指令(这项特性是在CUP0.1k中加入的)。在CUP发行版中的简单计算器例子中展示了如何利用CUP的扫描器集成特性添加一个手工编写的扫描器。CUP网站中也提供了一个最小的CUP/JLex集成实例以供学习。</p>
+<h3 id="第六章-错误恢复">第六章 错误恢复</h3>
+<p>使用CUP构建解析器的最后一个重要的方面是支持动态错误恢复。CUP使用了跟YACC相同的错误恢复机制。特别的，CUP支持一种特殊的错误符号，简单的使用error表示。这个符号扮演了一种特殊的非终结符角色，它能够匹配错误输入序列，而非一个用规则定义的字符串。</p>
+<p></p>
+<p>这个错误符号仅当检测到一个语法错误的时候才发挥作用。一个语法错误被检测到后，解析器使用error来代替输入符号序列的一部分，然后继续解析。作为实例，我们可能这样定义一条规则：</p>
+<pre><code>stmt ::= expr SEMI | while_stmt SEMI | if_stmt SEMI | ... |
+
+        error SEMI
+
+         ;
+</code></pre>
+<p>这条规则表明，如果输入序列无法匹配stmt正常的规则，这表明产生了一个语法错误，错误恢复机制在这个时候就应该发挥作用，它应该跳过错误符号序列(也就是用error符号来匹配和代替这个错误的符号序列)，一直到解析器可以继续解析的位置，这个位置可以是一个分好，或者是附加在一个语句后的合法的上下文环境。一个错误能够被认定为得到恢复，只有在error符号后面有足够数量的符号能够被成功的解析。这个符号的数量有解析器的error_sync_size()方法决定，默认值为3。</p>
+<p></p>
+<p>具体而言，解析器首先从解析栈顶部查找错误发生时与其有关的最近的一个状态。这有点类似于从表示更具体的规则(例如：一种特定的语句)向更泛化或封闭的规则(例如：所有语句的一般形式，或者是可以代表所有声明的规则)进行解析，直到遇到一个错误恢复规则。解析器一旦被配置成立即错误恢复(通过弹栈到第一个上述状态)的策略，它就会跳过错误符号序列去寻找能够继续解析的位置。在丢弃了错误符号序列的每个符号之后，解析器将试图向前解析，这个时候不会执行内嵌的语义代码。如果解析器在跳过足够数量的符号后能够成功的解析，输入序列就会被重新定位到恢复前的位置，解析器将重新开始解析，这个时候解析器要执行所有的内嵌动作。如果解析器仍然不能继续解析，当前的符号就会被丢弃，解析器将继续试图向前解析。如果已经到达了输入文件的结尾，仍然无法成功的恢复，或者说没有找到任何与错误恢复相符的状态，错误恢复就宣告失败。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#cup%E4%B8%AD%E6%96%87%E6%96%87%E6%A1%A3">CUP中文文档</a><br>
+*
+<ul>
+<li><a href="#%E5%BC%95%E8%A8%80%E5%85%B3%E4%BA%8Ecup010">引言：关于CUP0.10</a></li>
+<li><a href="#%E7%AC%AC%E4%B8%80%E7%AB%A0-%E7%AE%80%E4%BB%8B%E5%92%8C%E7%A4%BA%E4%BE%8B">第一章 简介和示例</a></li>
+<li><a href="#%E7%AC%AC%E4%BA%8C%E7%AB%A0-%E8%A7%84%E8%8C%83%E8%AF%AD%E6%B3%95">第二章 规范语法</a></li>
+<li><a href="#%E7%AC%AC%E4%B8%89%E7%AB%A0%E4%BD%BF%E7%94%A8cup">第三章使用CUP</a></li>
+<li><a href="#%E7%AC%AC%E5%9B%9B%E7%AB%A0-%E5%AE%9A%E5%88%B6%E8%A7%A3%E6%9E%90%E5%99%A8">第四章 定制解析器</a></li>
+<li><a href="#%E7%AC%AC%E4%BA%94%E7%AB%A0-%E6%89%AB%E6%8F%8F%E5%99%A8%E5%80%9F%E5%8F%A3">第五章 扫描器借口</a></li>
+<li><a href="#%E7%AC%AC%E5%85%AD%E7%AB%A0-%E9%94%99%E8%AF%AF%E6%81%A2%E5%A4%8D">第六章 错误恢复</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://nanfeng1999.github.io/doris-bian-yi-zhi-nan/">
+              <h3 class="post-title">
+                Doris编译指南
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  nanfeng1999
+  <a class="rss" href="https://nanfeng1999.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

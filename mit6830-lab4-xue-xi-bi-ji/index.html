@@ -1,0 +1,417 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MIT6.830 LAB4 学习笔记 | 南风渐起的博客</title>
+<link rel="shortcut icon" href="https://nanfeng1999.github.io/favicon.ico?v=1683948151951">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://nanfeng1999.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="MIT6.830 LAB4 学习笔记 | 南风渐起的博客 - Atom Feed" href="https://nanfeng1999.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="MIT6.830 LAB4 学习笔记
+背景知识
+严格的二阶段锁协议
+严格的两阶段加锁示意图
+
+二阶段锁协议把事务分为加锁和解锁两个阶段。当事务需要对页面进行读写操作的时候需要提前对页面加锁，防止本事务执行过程中其他事务获取该页面并修改。在实..." />
+    <meta name="keywords" content="MIT6.830" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://nanfeng1999.github.io">
+  <img class="avatar" src="https://nanfeng1999.github.io/images/avatar.png?v=1683948151951" alt="">
+  </a>
+  <h1 class="site-title">
+    南风渐起的博客
+  </h1>
+  <p class="site-description">
+    focus,feedback and fix!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              MIT6.830 LAB4 学习笔记
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-02-12
+              </span>
+              <span>
+                12 min read
+              </span>
+              
+                <a href="https://nanfeng1999.github.io/qPjy1qMDa/" class="post-tag">
+                  # MIT6.830
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="mit6830-lab4-学习笔记">MIT6.830 LAB4 学习笔记</h1>
+<h2 id="背景知识">背景知识</h2>
+<h3 id="严格的二阶段锁协议">严格的二阶段锁协议</h3>
+<p>严格的两阶段加锁示意图</p>
+<figure data-type="image" tabindex="1"><img src="https://static.oschina.net/uploads/img/201707/17105326_2MZl.png" alt="输入图片说明" loading="lazy"></figure>
+<p>二阶段锁协议把事务分为加锁和解锁两个阶段。当事务需要对页面进行读写操作的时候需要提前对页面加锁，防止本事务执行过程中其他事务获取该页面并修改。在实际情况中由于SQL千变万化，很难判断在什么时候执行解锁，因此解锁阶段统一安排在事务提交或回滚的时候，这样可以降低实现的复杂度。</p>
+<p>参考链接：https://segmentfault.com/a/1190000038163191</p>
+<h3 id="事务的acid特性">事务的ACID特性</h3>
+<p>实现事务需要保证ACID四个特征</p>
+<p>**原子性：**事务要么全部执行完成，要不全部执行失败，不存在中间状态。在本实验中是二阶段锁协议保证的，如果在获取某一页的时候死锁或者超时会终止事务，将本事务修改过的页面内容直接丢弃（不可能存在把这页中其他事务修改的内容也丢弃，因为这个事务获取到这个页之后除非提交事务，否则一直持有该页面，不可能再被其他事务获取）。</p>
+<p>**一致性：**在事务开始之前和事务结束以后，数据库的完整性没有被破坏。由于原子性，数据库是事务一致的。其他一致性问题(例如，键约束)在SimpleDB中没有解决。</p>
+<p>**隔离性：**数据库允许多个并发事务同时对其数据进行读写和修改的能力，隔离性可以防止多个事务并发执行时由于交叉执行而导致数据的不一致。本实验是二阶段锁协议保证的，对页级别进行上锁，如果是不同的页那么不同的事务可以并发读写。</p>
+<p>**持久性：**保存到文件中即满足了持久性。</p>
+<h3 id="恢复和缓存管理">恢复和缓存管理</h3>
+<p>simpledb使用NO STEAL+FORCE的缓存管理策略，含义如下：</p>
+<ul>
+<li>NO STEAL：不能够淘汰被未提交事务锁住的赃页</li>
+<li>FORCE：事务提交之后需要强制把赃页保存到磁盘上</li>
+</ul>
+<p>参考链接：https://blog.csdn.net/Singularinty/article/details/80747290</p>
+<h3 id="锁条件">锁条件</h3>
+<p>锁分为独占锁和共享锁两种，它们应该满足以下条件：</p>
+<ul>
+<li>读取页面之前需要加共享锁</li>
+<li>写页面之前需要加独占锁</li>
+<li>同一个页面允许多个事务加共享锁</li>
+<li>同一个页面只允许一个事务加独占锁</li>
+<li>如果事务t是唯一一个在页面持有共享锁的事务，事务t可以把持有的锁升级为独占锁</li>
+</ul>
+<h3 id="死锁出现的原因">死锁出现的原因</h3>
+<p>一个用户A 访问表A（锁住了表A），然后又访问表B；另一个用户B 访问表B（锁住了表B），然后企图访问表A；这时用户A由于用户B已经锁住表B，它必须等待用户B释放表B才能继续，同样用户B要等用户A释放表A才能继续，这就死锁就产生了。</p>
+<p>参考链接：https://blog.csdn.net/qq_16681169/article/details/74784193</p>
+<h2 id="实验">实验</h2>
+<h3 id="exercise-1">Exercise 1</h3>
+<h4 id="练习要求">练习要求</h4>
+<p>在BufferPool中实现获取锁和释放锁的方法，建议实现页级锁</p>
+<ol>
+<li>修改getPage函数，在返回页面之前获取锁</li>
+<li>实现unsafeReleasePage函数，释放事务t在页面p上加的锁</li>
+<li>实现holdsLock，判断页面是否被事务t加锁</li>
+</ol>
+<h4 id="实现思路">实现思路</h4>
+<p>本练习的重点是实现BufferPool获取页面之前的加锁逻辑。</p>
+<p>新增一个LockManager类，用于管理BufferPool中页面的锁，每个页面都持有一个所队列。锁分为两种类型：写锁和读锁，写锁和其他锁互斥；读锁和读锁共享，读锁和写锁互斥。</p>
+<p>给页面加锁需要遵循以下几个规则：</p>
+<ul>
+<li>当前事务给当前页面加的是读锁
+<ul>
+<li>如果当前页面没有加任何锁，那么加锁成功</li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功</li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败</li>
+<li>如果当前页面加的是其他事务的读锁，可能有一个或者多个，那么在当前页面的读锁队列中加入当前事务加的读锁（如果已经存在直接返回即可），加锁成功</li>
+</ul>
+</li>
+<li>当前事务给当前页面加的是写锁
+<ul>
+<li>如果当前页面没有加任何锁，那么加锁成功</li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功。如果是读锁的话需要升级为写锁</li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败</li>
+<li>如果当前页面加的是其他事务的读锁，那么加锁失败</li>
+</ul>
+</li>
+</ul>
+<h3 id="exercise-2">Exercise 2</h3>
+<h4 id="练习要求-2">练习要求</h4>
+<p>需要检查两块地方：</p>
+<ul>
+<li>使用SeqScan操作读取元组的时候，迭代器调用getPage函数需要使用读锁</li>
+<li>使用insertTuple和deleteTuple增删元组的时候，调用getPage函数需要使用写锁</li>
+</ul>
+<p>需要注意的两种场景：</p>
+<ul>
+<li>
+<p>向HeapFile中添加一个新页面。什么时候将页面物理地写入磁盘。</p>
+</li>
+<li>
+<p>在insertTuple()中首先要寻找是否有空闲的slot，这个操作则会先获取每个页的写锁，一旦找到空闲slot就进行写入，但是这种操作在以下情况会占用大量的资源：没有空闲slot的情况下，会不断获取每个页的写锁而不释放。</p>
+</li>
+</ul>
+<h4 id="实现思路-2">实现思路</h4>
+<p>针对场景1：首先在磁盘中创建一个空白页，然后将空白页读取到BufferPool中，从BufferPool中获取空白页，最后在空白页插入元组，标记页为赃页</p>
+<p>针对场景2：在页面加入写锁，如果遍历发现没有空闲slot那么直接释放这个锁，这样违背了严格的二阶段锁协议（要求提交的时候统一释放锁），但是这样不会有影响，因为并没有对页面进行读写</p>
+<h3 id="exercise-3">Exercise 3</h3>
+<h4 id="练习要求-3">练习要求</h4>
+<p>实现NO STEAL策略</p>
+<p>因为在NO STEAL策略下事务没有提交的话修改不能够写入到磁盘当中，这意味着可以通过丢弃BufferPool中该事务修改的赃页，然后从磁盘中重新读取修改前的数据到BufferPool中这种方式实现事务的终止。所以，当BufferPool满淘汰页面的时候不可以淘汰赃页。</p>
+<blockquote>
+<p>另外，如果需要淘汰的页面被某个事务加锁也需要进行处理，如果把被事务加锁的页面也设置为不可淘汰页，会无法通过AbortEvictionTest系统测试，暂时还没有想到这种情况下较好的处理方式</p>
+</blockquote>
+<ol>
+<li>在BufferPool中的evictPage函数中实现页面移除所需的逻辑，而不移除脏页。</li>
+</ol>
+<h4 id="实现思路-3">实现思路</h4>
+<p>BufferPool采用的是LRU策略，当BufferPool满的时候从链表最后一个Page遍历，找到第一个干净页进行淘汰。</p>
+<h3 id="exercise-4">Exercise 4</h3>
+<h4 id="练习要求-4">练习要求</h4>
+<p>事务提交时，应该将与事务关联的脏页刷新到磁盘；事务中止时，应该将页面恢复到其在磁盘上的状态来恢复事务所做的任何更改。无论事务是提交还是中止，都应该释放BufferPool保持的关于事务的任何状态，包括释放事务持有的任何锁。</p>
+<ol>
+<li>在BufferPool中实现transactionComplete()方法。</li>
+</ol>
+<h4 id="实现思路-4">实现思路</h4>
+<p>代码如下：</p>
+<pre><code class="language-java">public void transactionComplete(TransactionId tid, boolean commit) {
+
+    if(commit){
+        // 事务提交
+        try {
+            // 刷新本事务修改的赃页到磁盘当中
+            flushPages(tid);
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+    }else{
+        // 事务终止
+        // 从BufferPool中丢弃本事务修改的赃页，从磁盘中读取没有被修改的页重新缓存到BufferPool中去
+        restorePages(tid);
+    }
+	
+    // 释放事务占用的所有锁
+    lockManager.removeTransactionLocks(tid);
+}
+</code></pre>
+<h3 id="exercise-5">Exercise 5</h3>
+<h4 id="练习要求-5">练习要求</h4>
+<p>解决事务产生的死锁问题，可以使用的策略有以下三种</p>
+<ul>
+<li>超时策略</li>
+<li>基于循环依赖图的死锁判定</li>
+<li>基于时间戳排序的乐观并发控制策略</li>
+</ul>
+<ol>
+<li>在BufferPool中实现死锁检测或预防</li>
+</ol>
+<h4 id="实现思路-5">实现思路</h4>
+<p>本练习使用了循环依赖图+超时策略，每次事务加锁失败之后会放弃一段时间的CPU，然后再次尝试获取锁，这样子不断地轮询下去直到成功获取锁。在尝试获取锁的过程中需要等待其他事务释放锁，在这里锁可以看成是一种资源。每次事务等待资源的时候就更新循环依赖图，并通过图检测是否会发生死锁，如果发生死锁那么抛出异常终止事务。此外，如果事务获取锁时间超时，也会抛出异常终止事务。</p>
+<blockquote>
+<p>在循环检测依赖图中，顶点表示事务，每条边都是有向边，表示一个事务等待另一个事务</p>
+</blockquote>
+<p>更新循环依赖图需要遵循以下几个规则：</p>
+<ul>
+<li>当前事务给当前页面加的是读锁
+<ul>
+<li>如果当前页面没有加锁，那么加锁成功。<strong>图不更新</strong></li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功。<strong>图不更新</strong></li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败。<strong>图更新，当前事务需要等待这个加锁的事务</strong></li>
+<li>如果当前页面加的是其他事务的读锁，可能有一个或者多个，那么在当前页面的读锁队列中加入当前事务加的读锁（如果已经存在直接返回即可），加锁成功</li>
+</ul>
+</li>
+<li>当前事务给当前页面加的是写锁
+<ul>
+<li>如果当前页面没有加锁，那么加锁成功</li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功。如果是读锁的话需要升级为写锁</li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败。<strong>图更新，当前事务需要等待这个加锁的事务</strong></li>
+<li>如果当前页面加的是其他事务的读锁，那么加锁失败。<strong>图更新，当前事务需要等待读锁队列中的所有锁</strong></li>
+</ul>
+</li>
+</ul>
+<p>死锁检测过程：</p>
+<ul>
+<li>标记所有的顶点为未访问状态</li>
+<li>访问第一个顶点，设置该顶点为被访问状态，然后找到和顶点连接的其他顶点</li>
+<li>依次对其他顶点执行上一步的逻辑，如果发现某个顶点被访问过说明出现了循环等待，那么返回true表示出现死锁。如果遍历结束之后也没有出现过某个顶点被再次访问过的情况，那么返回false表示没有出现死锁</li>
+</ul>
+<p>超时机制：</p>
+<p>事务id生成的时候记录开始时间，每次获取锁失败的时候判断一下事务是否超时，如果超时的话终止事务。</p>
+<p>这里设置超时时间为30s，不排除长事务导致超时的可能性。</p>
+<p>代码如下：</p>
+<pre><code class="language-java">// 自旋获取锁 直到成功
+while (true){
+    // 语句加锁 并发
+    synchronized (lock){
+        // 如果获取锁失败
+        if(!lockManager.acquireLock(tid,pid,perm)){
+            // 等待其他事务释放锁，更新依赖图
+            lockManager.waitForResources(tid,pid,perm);
+            // 释放CPU
+            Thread.yield();
+            // 检测事务是否超时 超时的话直接抛出异常
+            if (isTimeOutTransaction(tid)) {
+            	throw new TransactionAbortedException();
+            }
+            // 检测是否出现死锁，如果出现的话会直接抛出异常
+            lockManager.dealWithPotentialDeadlocks(tid);
+        }else{
+            // 获取锁成功，直接返回
+            break;
+        }
+    }
+}
+</code></pre>
+<h2 id="存在的疑问和解答">存在的疑问和解答</h2>
+<p><strong>多个事务同时执行，如何保证事务之间修改数据互不影响？</strong></p>
+<p>假设事务1对页面1执行写入操作，事务2也对页面1执行写入操作，这两个事务同时执行。事务1先获取页面1的写锁，然后再页面中插入数据，该页面变成赃页，最后修改页面的是事务1，这个时候事务1并不会解锁，因为他还没有终止或者提交。事务1执行完毕之后会把赃页刷回磁盘中，然后再释放锁，这个时候事务2才能获取到页面1的写锁，紧接着事务2执行，修改页面1然后写回。</p>
+<p>从上面的过程可以看出当有多个事务同时执行的时候，会根据事务获取页面的顺序依次执行事务，不存在事务之间互相冲突导致数据错乱的情况，因为某个事务占有某个页面之后，其他事务要等到这个事务提交之后才能够占有这个页面。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#mit6830-lab4-%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0">MIT6.830 LAB4 学习笔记</a>
+<ul>
+<li><a href="#%E8%83%8C%E6%99%AF%E7%9F%A5%E8%AF%86">背景知识</a>
+<ul>
+<li><a href="#%E4%B8%A5%E6%A0%BC%E7%9A%84%E4%BA%8C%E9%98%B6%E6%AE%B5%E9%94%81%E5%8D%8F%E8%AE%AE">严格的二阶段锁协议</a></li>
+<li><a href="#%E4%BA%8B%E5%8A%A1%E7%9A%84acid%E7%89%B9%E6%80%A7">事务的ACID特性</a></li>
+<li><a href="#%E6%81%A2%E5%A4%8D%E5%92%8C%E7%BC%93%E5%AD%98%E7%AE%A1%E7%90%86">恢复和缓存管理</a></li>
+<li><a href="#%E9%94%81%E6%9D%A1%E4%BB%B6">锁条件</a></li>
+<li><a href="#%E6%AD%BB%E9%94%81%E5%87%BA%E7%8E%B0%E7%9A%84%E5%8E%9F%E5%9B%A0">死锁出现的原因</a></li>
+</ul>
+</li>
+<li><a href="#%E5%AE%9E%E9%AA%8C">实验</a>
+<ul>
+<li><a href="#exercise-1">Exercise 1</a>
+<ul>
+<li><a href="#%E7%BB%83%E4%B9%A0%E8%A6%81%E6%B1%82">练习要求</a></li>
+<li><a href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF">实现思路</a></li>
+</ul>
+</li>
+<li><a href="#exercise-2">Exercise 2</a>
+<ul>
+<li><a href="#%E7%BB%83%E4%B9%A0%E8%A6%81%E6%B1%82-2">练习要求</a></li>
+<li><a href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF-2">实现思路</a></li>
+</ul>
+</li>
+<li><a href="#exercise-3">Exercise 3</a>
+<ul>
+<li><a href="#%E7%BB%83%E4%B9%A0%E8%A6%81%E6%B1%82-3">练习要求</a></li>
+<li><a href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF-3">实现思路</a></li>
+</ul>
+</li>
+<li><a href="#exercise-4">Exercise 4</a>
+<ul>
+<li><a href="#%E7%BB%83%E4%B9%A0%E8%A6%81%E6%B1%82-4">练习要求</a></li>
+<li><a href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF-4">实现思路</a></li>
+</ul>
+</li>
+<li><a href="#exercise-5">Exercise 5</a>
+<ul>
+<li><a href="#%E7%BB%83%E4%B9%A0%E8%A6%81%E6%B1%82-5">练习要求</a></li>
+<li><a href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF-5">实现思路</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#%E5%AD%98%E5%9C%A8%E7%9A%84%E7%96%91%E9%97%AE%E5%92%8C%E8%A7%A3%E7%AD%94">存在的疑问和解答</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://nanfeng1999.github.io/mit6830-lab3-xue-xi-bi-ji/">
+              <h3 class="post-title">
+                MIT6.830 LAB3 学习笔记
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  nanfeng1999
+  <a class="rss" href="https://nanfeng1999.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

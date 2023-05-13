@@ -1,0 +1,287 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>dubbo-go优雅上下线代码解读 | 南风渐起的博客</title>
+<link rel="shortcut icon" href="https://nanfeng1999.github.io/favicon.ico?v=1683948151951">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://nanfeng1999.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="dubbo-go优雅上下线代码解读 | 南风渐起的博客 - Atom Feed" href="https://nanfeng1999.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="代码路径：dubbo-go/config/graceful_shutdown.go
+dubbo-go优雅上下线原理
+优雅关闭配置结构体
+// ShutdownConfig is used as configuration for grace..." />
+    <meta name="keywords" content="dubbo-go" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://nanfeng1999.github.io">
+  <img class="avatar" src="https://nanfeng1999.github.io/images/avatar.png?v=1683948151951" alt="">
+  </a>
+  <h1 class="site-title">
+    南风渐起的博客
+  </h1>
+  <p class="site-description">
+    focus,feedback and fix!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              dubbo-go优雅上下线代码解读
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-01-16
+              </span>
+              <span>
+                5 min read
+              </span>
+              
+                <a href="https://nanfeng1999.github.io/wKV_Ls7eB/" class="post-tag">
+                  # dubbo-go
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>代码路径：dubbo-go/config/graceful_shutdown.go<br>
+<a href="https://mp.weixin.qq.com/s/28nbBu1RKPFZo7xM6O94UQ">dubbo-go优雅上下线原理</a></p>
+<h2 id="优雅关闭配置结构体">优雅关闭配置结构体</h2>
+<pre><code class="language-go">// ShutdownConfig is used as configuration for graceful shutdown
+type ShutdownConfig struct {
+    Timeout string `default:&quot;60s&quot; yaml:&quot;timeout&quot; json:&quot;timeout,omitempty&quot; property:&quot;timeout&quot;`
+
+    StepTimeout string `default:&quot;3s&quot; yaml:&quot;step-timeout&quot; json:&quot;step.timeout,omitempty&quot; property:&quot;step.timeout&quot;`
+
+    ConsumerUpdateWaitTime string `default:&quot;3s&quot; yaml:&quot;consumer-update-wait-time&quot; json:&quot;consumerUpdate.waitTIme,omitempty&quot; property:&quot;consumerUpdate.waitTIme&quot;`
+
+    RejectRequestHandler string `yaml:&quot;reject-handler&quot; json:&quot;reject-handler,omitempty&quot; property:&quot;reject_handler&quot;`
+
+    InternalSignal *bool `default:&quot;true&quot; yaml:&quot;internal-signal&quot; json:&quot;internal.signal,omitempty&quot; property:&quot;internal.signal&quot;`
+
+    OfflineRequestWindowTimeout string `yaml:&quot;offline-request-window-timeout&quot; json:&quot;offlineRequestWindowTimeout,omitempty&quot; property:&quot;offlineRequestWindowTimeout&quot;`
+
+    RejectRequest atomic.Bool
+
+    ConsumerActiveCount atomic.Int32
+    ProviderActiveCount atomic.Int32
+
+    ProviderLastReceivedRequestTime atomic.Time
+}
+</code></pre>
+<h2 id="代码分析">代码分析</h2>
+<blockquote>
+<p><strong>下面标红的部分表示和优雅关闭配置相关的内容</strong></p>
+</blockquote>
+<p><a href="https://blog.csdn.net/qq_23080741/article/details/119205621"><strong>kill命令信号全解</strong></a><br>
+<strong>gracefulShutdownInit函数：</strong></p>
+<ul>
+<li>获取客户端优雅关闭过滤器cGracefulShutdownFilter</li>
+<li>获取服务端优雅关闭过滤器sGracefulShutdownFilter</li>
+<li>cGracefulShutdownFilter中设置优雅关闭配置sdc（使用GetShutDown函数从根配置中获取）</li>
+<li>sGracefulShutdownFilter中设置优雅关闭配置sdc</li>
+<li>如果优雅关闭配置中设置为需要监听KILL信号（默认监听），进入下一步</li>
+<li>单独开启一个协程，以下是协程的执行函数</li>
+<li>等待KILL信号的到达，信号到达后进入下一步</li>
+<li>设置超时函数，如果一段时间后（取sdc中的Timeout和默认关闭时间的最大值，默认是60s），后面的处理还没有完成那么强制退出</li>
+<li>调用BeforeShutdown函数</li>
+<li>如果是通过转储堆栈退出的信号，那么打印此时的堆信息</li>
+</ul>
+<p><strong>BeforeShutdown函数：</strong></p>
+<ul>
+<li>调用destroyAllRegistries函数</li>
+<li>调用waitAndAcceptNewRequests函数</li>
+<li>调用waitAndAcceptNewRequests函数</li>
+<li>调用destroyProtocols函数</li>
+<li>依次执行自定义的回调函数</li>
+</ul>
+<p><strong>destroyAllRegistries函数：</strong></p>
+<ul>
+<li>从extension模块的缓存中获取注册中心协议（etcd、nacos、zookeeper等）</li>
+<li>注册中心协议调用Destroy函数，销毁注册信息</li>
+</ul>
+<p><strong>Destroy函数：</strong></p>
+<ul>
+<li>向注册中心发送反注册请求</li>
+<li>删除注册中心列表的所有注册中心结构体</li>
+<li>在consumerUpdateWait + stepTimeout这段时间后，取消对注册中心信息的监听（不能够立即取消，因为这期间还有可能会有新的下游的注册信息变动）</li>
+</ul>
+<p><strong>waitAndAcceptNewRequests函数：</strong></p>
+<ul>
+<li>等待一段时间（sdc中ConsumerUpdateWaitTime字段，默认3s），等待这一段时间是为了保证服务端在注册中心取消服务的信息能够传到客户端中去</li>
+<li>调用waitingProviderProcessedTimeout函数
+<ul>
+<li>设置截止时间，截止时间是当前时间加上一段时间（sdc中的StepTimeout字段，默认3s），这一段时间是为了保证本机发送出去的请求都得到了回复，需要根据 **绝大部分请求从发送到接收的时间 **进行估计，一般等待这个时间的2~3倍比较稳妥</li>
+<li>如果当前时间还没有到达截止时间，同时以下条件满足其中一个：1.本机作为服务提供方还有上游的请求正在处理中 2.当前时间在最近接收到的请求的离线窗口时间范围内（这个时间通过sdc中的OfflineRequestWindowTimeout字段确定，默认3s）。那么休眠10ms。循环执行步骤，直到有一个条件不被满足为止</li>
+</ul>
+</li>
+</ul>
+<p><strong>waitForSendingAndReceivingRequests函数：</strong></p>
+<ul>
+<li>设置拒绝后续请求</li>
+<li>调用waitingConsumerProcessedTimeout函数
+<ul>
+<li>设置截止时间，截止时间的设置步骤和waitingProviderProcessedTimeout函数中一致</li>
+<li>如果当前时间还没有到达截止时间，同时本机作为客户端调用下游服务的请求还没有全部结束。那么休眠10ms。循环这个步骤，直到有一个条件不被满足为止</li>
+</ul>
+</li>
+</ul>
+<p><strong>destroyProtocols函数：</strong></p>
+<ul>
+<li>获取本机作为客户端对下游任务的引用，从引用中获取使用的协议，最后得到协议集合</li>
+<li>调用destroyProviderProtocols函数，销毁本机作为服务提供者的协议资源
+<ul>
+<li>遍历协议集合</li>
+<li>进行判断，如果是本机作为服务消费者使用的协议，那么不销毁</li>
+<li>调用Destroy函数，销毁本机作为服务提供者使用的协议</li>
+</ul>
+</li>
+<li>调用destroyConsumerProtocols函数，销毁本机作为消费者使用的协议资源
+<ul>
+<li>调用Destroy函数，销毁本机作为服务消费者使用的协议</li>
+</ul>
+</li>
+</ul>
+<p><strong>Destory函数：</strong>（这是一个接口函数，dubbo、dubbo3、rest、grpc和jsonrpc都实现了这个接口，下面以dubbo协议的为例）</p>
+<ul>
+<li>调用BaseProtocol.Destroy
+<ul>
+<li>遍历协议的invoker列表，依次销毁invoker（本机作为服务消费者的时候才存在，本端对下游的服务提供者使用代理进行封装，直接使用本端的invoker调用函数即可实现远程调用服务的功能），一个invoker对应远程的一个服务</li>
+<li>遍历发布服务列表，依次取消服务的发布（通知注册中心取消服务，注册中心删除对应的服务信息）</li>
+</ul>
+</li>
+<li>遍历服务列表，依次暂停服务（本机作为服务提供者的时候才存在，从服务列表中删除服务信息，被删除的服务调用stop函数停止服务）</li>
+</ul>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%BC%98%E9%9B%85%E5%85%B3%E9%97%AD%E9%85%8D%E7%BD%AE%E7%BB%93%E6%9E%84%E4%BD%93">优雅关闭配置结构体</a></li>
+<li><a href="#%E4%BB%A3%E7%A0%81%E5%88%86%E6%9E%90">代码分析</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://nanfeng1999.github.io/mit6830-lab-xue-xi-bi-ji/">
+              <h3 class="post-title">
+                MIT6.830 LAB2 学习笔记
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  nanfeng1999
+  <a class="rss" href="https://nanfeng1999.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

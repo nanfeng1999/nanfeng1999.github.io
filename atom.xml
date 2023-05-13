@@ -1,0 +1,1625 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://nanfeng1999.github.io</id>
+    <title>南风渐起的博客</title>
+    <updated>2023-05-13T03:22:35.324Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://nanfeng1999.github.io"/>
+    <link rel="self" href="https://nanfeng1999.github.io/atom.xml"/>
+    <subtitle>focus,feedback and fix!</subtitle>
+    <logo>https://nanfeng1999.github.io/images/avatar.png</logo>
+    <icon>https://nanfeng1999.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2023, 南风渐起的博客</rights>
+    <entry>
+        <title type="html"><![CDATA[JAVA CUP中文文档]]></title>
+        <id>https://nanfeng1999.github.io/java-cup-zhong-wen-wen-dang/</id>
+        <link href="https://nanfeng1999.github.io/java-cup-zhong-wen-wen-dang/">
+        </link>
+        <updated>2023-05-13T03:19:00.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="cup中文文档">CUP中文文档</h1>
+<p>引用自：https://blog.csdn.net/catchertherye/article/details/10985707</p>
+<h3 id="引言关于cup010">引言：关于CUP0.10</h3>
+<p>版本0.10与其先前的版本0.9相比，增加了很多新的变化和特性。这些变化使CUP看起来更像它的前辈YACC。总之，版本0.9的解析器文件规范已经不被新版本所兼容，为了写出适合新版本的规范文件，您有必要详细阅读新用户手册的附件C。然而，新版本为用户提供了更强大的功能和更多的选项，也使得编写解析器规范文件更容易。</p>
+<h3 id="第一章-简介和示例">第一章 简介和示例</h3>
+<p>这个手册为您描述了Java版有用语法解析器生成器(Constructor of Useful Parser简称CUP)的最基本操作及用法。CUP是一个使用简单规范文件生成LALR语法解析器的系统。它与被广泛使用的YACC程序扮演了同样的角色，事实上它实现了YACC大多数的功能。然而，CUP是用Java语言开发的，使用内嵌Java代码的规范文件，生成Java语言的语法解析器。(一下我们将语法解析器简称为解析器)。</p>
+<p></p>
+<p>尽管这本手册涵盖了CUP系统的方方面面，却相对简单，然而我们假定您至少懂得一点关于LR语法分析(从左向右扫描的一种语法分析方法)。使用过YACC的经验将有助于您对CUP规范文件的工作原理的理解，很多关于编译器构造的教材(比如引用[2,3])都会涵盖这些内容，大多使用YACC(与CUP非常类似的一个解析器生成器)作为一个具体的例子进行讲解。除此之外Andrew Appel的《现代编译器Java实现》一书在编译器构造中使用和描述了CUP系统。</p>
+<p></p>
+<p>使用CUP生成解析器包括：创建一个基于特定语法简单的规范文件、构造一个能将输入字符串分解成一系列有意义的符号(例如关键字、数字、特殊符号)的词法扫描器两个步骤。(一下我们将此法扫描器scanner简称为扫描器)。</p>
+<p></p>
+<p>作为一个例子，考虑一个简单的计算整数算数表达式的系统。该系统从标准终端上读取表达式(每个表达式以分号结束)，计算它们值，最后在标准终端上输出结果。这种系统的一个语法规范可以用下面的代码表示：</p>
+<pre><code>  expr_list ::= expr_list expr_part | expr_part
+  expr_part ::= expr ';'
+  expr      ::= expr '+' expr | expr '-' expr | expr '*' expr 
+	      | expr '/' expr | expr '%' expr | '(' expr ')'  
+              | '-' expr | number 
+</code></pre>
+<p>为了利用这个规范生成一个解析器，首先指定并命名可能在程序中出现的终结符及非终结符。这个例子的非终结符有：</p>
+<pre><code>expr_list， expr_part， expr 
+</code></pre>
+<p>终结符我们可以选择</p>
+<pre><code>SEMI， PLUS， MINUS， TIMES， DIVIDE， MOD， NUMBER， LPAREN， RPAREN 
+</code></pre>
+<blockquote>
+<figure data-type="image" tabindex="1"><img src="https://nanfeng1999.github.io/post-images/1683948020117.png" alt="" loading="lazy"></figure>
+</blockquote>
+<p>有经验的用户可能会注意到上述规范中存在的一个问题，就是它看起来非常含糊。一个含糊的文法，会将一个特定的输入用两种不同的方式进行解析，有可能会给出两种不同的结果。以上述规范为例，对于这样一个输入3+4*6，它会先计算3+4然后再乘于6，或者先计算4*6然后再加上3。老版本的CUP要求用户写明确的规范，但是现在这个版本为用户提供了一个指令来为符号指定优先级及结合性。这意味这上述不明确的文法在指定了优先级和结合性后仍然可以使用，下面将给出这方面更多的解释。基于上面的说明，我们可以构造如下一个简单的CUP规范文件：</p>
+<pre><code class="language-cup">//简单计算器的CUP规范(没有执行动作)
+
+import java_cup.runtime.*;
+
+/*初始设置、设定词法扫描器 */
+
+init with {: scanner.init();              :};
+
+scan with {: return scanner.next_token(); :};
+
+/* 终结符 (词法扫描器返回的符号). */
+
+terminal           SEMI, PLUS, MINUS, TIMES, DIVIDE, MOD;
+
+terminal           UMINUS, LPAREN, RPAREN;
+
+terminal Integer  NUMBER;
+
+/* 非终结符 */
+
+non terminal           expr_list, expr_part;
+
+non terminal Integer expr, term, factor;
+
+/* 优先级 */
+
+precedence left PLUS,  MINUS;
+
+precedence left TIMES, DIVIDE, MOD;
+
+precedence left UMINUS;
+
+/* 文法 */
+
+expr_list ::= expr_list expr_part 
+
+| expr_part;
+
+expr_part ::= expr SEMI;
+
+expr       ::= expr PLUS expr 
+
+           | expr MINUS expr  
+
+           | expr TIMES expr  
+
+           | expr DIVIDE expr  
+
+           | expr MOD expr 
+
+      | MINUS expr %prec UMINUS
+
+      | LPAREN expr RPAREN
+
+      | NUMBER
+
+  ;
+</code></pre>
+<p>接下来我们会详细讲解这个规范文件的每一部分。从上面这个例子可以很容易看出规范文件一般包括四个主要的部分。</p>
+<p>第一部分包括一些预处理及各种声明，以指定如何构建编译器，同时也包含了一些运行时代码，在这个例子的第一部分，我们指定解析器应导入java_cup.runtime包内的所有类，然后给出了一小段初始化代码及一些调用扫描器来获得下一个符号的代码。</p>
+<p>第二部分声明终结符和非终结符，以及每个符号对应的类型，这个例子中，终结符被声明为无类型及Integer类型两种，这个类型指的是终结符或非终结符所代表的值的类型，如果没有指定类型，它们也就没有值。</p>
+<p>第三部分指定终结符的优先级和结合性，这部分最后出现的终结符拥有最高的优先级。</p>
+<p>第四部分描述系统的语法。</p>
+<p></p>
+<p>使用CUP解析器生成器根据这个规范文件生成一个解析器：如果这个规范保存在一个名为parser.cup的文件中，我们可以用下面这样的命令调用CUP：</p>
+<pre><code> java -jar java-cup-11b.jar parser.cup 
+</code></pre>
+<p>系统会生成两个Java源文件sym.java和parser.java保存解析器的两个部分(这两个名字可以通过命令行选项更改，下面会提到)。正如你所期望的那样，这两个文件分别保存了sym和parser类。sym类包含了一系列的常量声明，每一个声明代表一个终结符，它可以被扫描器用来指定扫描到的符号，例如这样一个代码“return new Symbol(sym.SEMI);”。parser类则实现了解析器本身。</p>
+<p></p>
+<p>上面的规范尽管能生成一个完整的解析器，但是不执行任何语义动作，它仅仅指示一次解析是成功还是失败。为了计算和打印每个表达式的结果，我们必须在规范文件中的不同位置嵌入携带语义动作的Java代码。在CUP规范中语义动作被包含在代码串中，即{:和:}之间的内嵌代码，例如上面例子中的init with和scan with子句。一般而言，系统会记录{:和:}中的所有符号，但是不去检查它们是否为有效的Java代码。</p>
+<p></p>
+<p>我们所举例子的一个更加完整的CUP规范(在不同位置内嵌了代表语义动作的java代码)如下所示：</p>
+<pre><code>//简单算术表达式计算器的CUP规范(包含语义动作)
+
+import java_cup.runtime.*;
+
+/*初始设置、设定词法扫描器   */
+
+init with {: scanner.init();              :};
+
+scan with {: return scanner.next_token(); :};
+
+/*终结符 (词法扫描器返回的符号).  */
+
+terminal           SEMI, PLUS, MINUS, TIMES, DIVIDE, MOD;
+
+terminal           UMINUS, LPAREN, RPAREN;
+
+terminal Integer   NUMBER;
+
+/* Non-terminals */
+
+non terminal            expr_list, expr_part;
+
+non terminal Integer    expr;
+
+/* 非终结符*/
+
+precedence left PLUS, MINUS;
+
+precedence left TIMES, DIVIDE, MOD;
+
+precedence left UMINUS;
+
+/* 语法 */
+
+expr_list   ::= expr_list expr_part | expr_part;
+
+expr_part  ::= expr:e  {: System.out.println(&quot;= &quot; + e); :}  SEMI;
+
+expr       ::= expr:e1  PLUS    expr:e2 {: RESULT = new Integer(e1.intValue() + e2.intValue()); :} 
+
+   | expr:e1  MINUS  expr:e2 {: RESULT = new Integer(e1.intValue() - e2.intValue()); :} 
+
+   | expr:e1  TIMES   expr:e2 {: RESULT = new Integer(e1.intValue() * e2.intValue()); :} 
+
+   | expr:e1  DIVIDE  expr:e2 {: RESULT = new Integer(e1.intValue() / e2.intValue()); :} 
+
+   | expr:e1  MOD    expr:e2 {: RESULT = new Integer(e1.intValue() % e2.intValue()); :} 
+
+   | NUMBER:n {: RESULT = n; :} 
+
+   | MINUS expr:e{: RESULT = new Integer(0 - e.intValue()); :} %prec UMINUS
+
+   | LPAREN expr:e RPAREN{: RESULT = e; :} 
+
+   ;
+</code></pre>
+<blockquote>
+<p>什么是%prec<br>
+https://blog.csdn.net/skywuuu/article/details/112069830</p>
+<p>nonassoc：指明没有结合性</p>
+</blockquote>
+<p>其中我们会看到一些改变，最重要的是在规范的不同位置加入了被{:和:}包围的用于执行语义动作的内嵌代码串。除此之外，还在不同规则的右边加入了一些标签，例如</p>
+<pre><code>expr:e1 PLUS expr:e2{: RESULT = new Integer(e1.intValue() + e2.intValue()); :}
+</code></pre>
+<p>第一个非终结符expr添加了标签e1，第二个非终结符添加了标签e2。每条规则的值被隐含标记为RESULT。</p>
+<p>出现在每条规则中的符号，在解析堆栈都使用一个Symbol类型的对象来表示，它们的标签则代表这些对象中的实例变量的值。在表达式</p>
+<p>对于每个标签，将会有两个用户可访问的变量被声明，分别称之为标签的左值和右值，它们的值可以传送给内嵌代码串，这样用户就可以定位每个终结符或非终结符在输入流中的位置。每个变量的名字是标签加上left或right，例如对于规则expr:e1 PLUS expr:e2，用户不仅可以访问变量e1和e2，也可访问e1left、e1right、e2left及e2right，而且它们四个都是int型的变量。</p>
+<p></p>
+<p>创建一个可以工作的解析器的最后一个步骤是创建一个词法扫描器(有时也被称之为词法分析器)。这个程序负责读取输入字符串，去除空格和注释，找出每个词在语法中代表的终结符，最后向解析器返回代表这些终结符的Symbol对象。通过调用扫描器函数就可以获得这些终结符，例如解析器调用scanner.next_token()方法，扫描器则返java_cup.runtime.Symbol类型的变量（这种变量与CUP先前版本的java_cup.runtime.symbol类型的变量有很大的不同）。每个Symbol对象携带一个Object类型的实例变量，其类型应该在词法扫描器中被指明，变量则存储了该对象的值，因此其类型应该与该终结符或非终结符在规范文件中被定义时声明的类型一致。在上面的例子中，如果词法分析器要返回一个NUMBER符号的值，应该定义一个Symbol对象包含一个表示Integer类型对象变量。与无值终结符或非终结符对应的Symbol对象中相应的变量会储存一个空值。</p>
+<p>规范文件中init with 字句中包含代码，会在获取任何符号之前被执行，任何符号都将通过scan with子句中的代码获取。除此之外，调用扫描器的具体方式由你自己决定，但是每次调用扫描器获取符号的函数都应该返回一个java_cup.runtime.Symbol(或其子类)的对象。这些Symbol对象将被标注上解析器信息并存储在一个栈中，重用这些对象会导致解析器注释信息混乱。版本CUP0.10j会检测Symbol对象是否被重用，如果检测到Symbol对象被重用，解析器将会抛出一个错误提醒你改正你的扫描器。</p>
+<p>在下一节中，将会对CUP规范各部分进行更详细和正式讲述。第3节讲述使用CUP系统的各种选项。第4节讲述如何定制CUP解析器。第5节讲述CUP0.10j中增加的词法扫描器接口。第6节讲述错误恢复方面的内容。第7节对本手册进行总结。</p>
+<p></p>
+<h3 id="第二章-规范语法">第二章 规范语法</h3>
+<p></p>
+<p>由于我们已经接触到了一个简单的例子，现在就给出CUP规范文件各部分最为完整的描述。一个规范文件包含四个部分共八项内容(其中大部分是可选项)，即：包定义及引用、用户代码区、符号列表(终结符和非终结符)、优先级声明、语法。每一部分必须按上面给出的顺序进行书写(附录A给出了规范文件一个完整示例)。每一部分的具体细节会在下面几个小节中描述。</p>
+<p></p>
+<p><strong>包定义和引用规范</strong></p>
+<p>规范文件以package和import声明开头，这两个声明是可选的。这些声明与标准Java程序中的package和import声明有相同的语法，并扮演相同的角色。package的声明形式</p>
+<pre><code>package name; 
+</code></pre>
+<p>其中name是一个Java包名标示符，有时候可能会由几个用“.”分割的单词组成。一般说来，CUP采用了Java的词法规范。因此Java的注释风格在CUP中被支持，标示符也类似于Java中的以字母、<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi mathvariant="normal">、</mi><mi mathvariant="normal">_</mi><mi mathvariant="normal">开</mi><mi mathvariant="normal">头</mi><mi mathvariant="normal">后</mi><mi mathvariant="normal">节</mi><mi mathvariant="normal">零</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">或</mi><mi mathvariant="normal">多</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">字</mi><mi mathvariant="normal">母</mi><mi mathvariant="normal">、</mi><mi mathvariant="normal">数</mi><mi mathvariant="normal">字</mi><mi mathvariant="normal">、</mi></mrow><annotation encoding="application/x-tex">、\_开头后节零个或多个字母、数字、</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.43056em;vertical-align:-0.31em;"></span><span class="mord cjk_fallback">、</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord cjk_fallback">开</span><span class="mord cjk_fallback">头</span><span class="mord cjk_fallback">后</span><span class="mord cjk_fallback">节</span><span class="mord cjk_fallback">零</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">或</span><span class="mord cjk_fallback">多</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">字</span><span class="mord cjk_fallback">母</span><span class="mord cjk_fallback">、</span><span class="mord cjk_fallback">数</span><span class="mord cjk_fallback">字</span><span class="mord cjk_fallback">、</span></span></span></span>、_标识符规范。package声明之后，可以再声明零个或多个import语句。正如在Java程序中的形式一样，CUP中的import声明形式可以是：</p>
+<pre><code>import package_name.class_name;
+</code></pre>
+<p>或者</p>
+<pre><code>import package_name.*;
+</code></pre>
+<p>包声明语句表示系统生成的sym和parser文件将会放入哪个包内，import声明会被原封不动地放在系统生成的parser源文件中，以使被导入包内的各种名字可以在内嵌的语义动作代码内直接使用。</p>
+<p></p>
+<p><strong>用户代码区</strong></p>
+<p>package和import声明之后，是一系列用户代码，这些代码同样是可选的，它们可以作为解析器的部分代码被放在生成的parser文件内(查看第四章获取详细的parser使用这些代码的方式)。作为parser规范文件的一部分，用户语义动作代码被存放在一个独立的非公有化类内，第一个action code声明区允许其中的代码存放在这个类内。文法中的内嵌代码使用的例程和变量应该被放置在这个区域内(一个典型的例子是符号表操作例程)。声明的形式是：</p>
+<p>action code{:……:};</p>
+<p>{:……:}中的代码串会直接存放action class声明的类中。</p>
+<p></p>
+<p>action code之后是一个parser code声明，这部分是可选的。这个声明内的方法和变量将会被直接存放在解析器类内，尽管这个声明看起来非常普通，但是在定制解析器的时候将会非常有用。它可以将词法扫描方法包含在解析器内或者重载默认的错误报告例程。这个声明的形式和action code的声明形式非常类似，即：</p>
+<p>parser code {: ... :};</p>
+<p>{: ... :}中的代码串被直接存放在解析器类中。</p>
+<p></p>
+<p>接下来是init with声明，同样是可选的，其形式是：</p>
+<p>init with {: ... :};</p>
+<p>这个声明内的代码会在解析器获取第一个符号之前被执行。通常，这些代码用来初始化词法扫描器，以及执行语义动作时会用到的一些表或其他数据结构。这些代码在parser类内被构造成一个无返回值的方法。</p>
+<p></p>
+<p>规范文件用户代码区的最后一个可选部分表示解析器如何从词法扫描器内获取下一个符号，其形式：</p>
+<p>scan with{: ... :};</p>
+<p>正如init子句一样，其内的代码串会在解析器内存放在一个方法内，所不同的是，这个方法会有一个java_cup.runtime.Symbol类型的返回值，所以sacn with内放置的代码应该返回这种类型的一个值。在第5章中将会讲述如果scan with字句被忽略时，系统默认执行的动作。</p>
+<p></p>
+<p>对于CUP0.10j，action code，parser code，init with，scan with可以以任意顺序出现，但是他们必须放置在符号列表之前。</p>
+<p></p>
+<p>符号列表</p>
+<p>用户代码区之后，即是符号列表区，这部分是规范文件必写内容。这些声明负责为在语法中出现的终结符和非终结符命名和指定类型。正如上面提到的一样，每个终结符和非终结符在运行期由一个Symbol对象表示。以终结符为例来说，这些对象由词法扫描器返回并存储在解析器堆栈中，扫描器应该将终结符的值存入Symbol对象中对应类型的实例变量中。以非终结符为例来说，一旦有些右值规则被解析到，它会替换掉解析堆栈中的一系列Symbol对象。为了告知解析器应该将哪个符号指定为何种类型的对象，应该在terminal， non-terminal后进行声明，其声明形式为：</p>
+<pre><code>terminal      classname  name1, name2, ...;
+
+non terminal  classname  name1, name2, ...;
+
+terminal                name1, name2, ...;
+
+non terminal            name1, name2, ...;
+</code></pre>
+<p>其中classname可以是由“.”分割的复合名，指定的classname就代表其后的终结符或非终结符的类型。当用标签访问符号的值时，用户应该使用该符号被声明的类型。classname可以是任何类型，如果终结符和非终结符未指定任何类型，那么这种类型的符号就不能携带值，引用该种类型符号的标签也被系统设定为空值。对于CUP版本0.10j，你也可以将非终结符指定为“nonterminal”(注意其中没有空格)或者“non terminal”(其中包含空格)。</p>
+<p></p>
+<p>终结符和非终结符的名字不可以使用CUP的保留字。CUP的保留字包括：“code”，“action”，“parser”，“terminal”，“non”，“nonterminal”，“init”，“scan”，“with”，“start”，“precedence”，“left”，“right”，“nonassoc”，“import”，“package”。</p>
+<p></p>
+<p>优先级和结合性</p>
+<p>规范文件的第三部分，可选部分，用于指定终结符的优先级和结合性。这对于解析不明确的语法非常有用，正如在上面例子中所看到的那样。有三种类型的优先级和结合性声明：</p>
+<pre><code>precedence left     terminal[, terminal...];
+
+precedence right    terminal[, terminal...];
+
+precedence nonassoc terminal[, terminal...];
+</code></pre>
+<p>用逗号隔开的列表表示这些终结符应该具有precedence指定的结合性和优先级级别。precedence指定的优先级与其出现的顺序相反，越早出现的级别越低，越晚出现的级别越高。因此，下面的声明表示乘法和除法具有较高的优先级，而加法和减法具有较低的优先级。</p>
+<pre><code>precedence left  ADD,  SUBTRACT;
+
+precedence left  TIMES,  DIVIDE;
+</code></pre>
+<p></p>
+<p>使用优先级声明，可以解决移进/规约问题。例如，给上面例子一个这样的输入：3+4*8，解析器就不知道是应当对3+4进行规约，还是将*移进堆栈。然而，由于*比+的优先级高，*应该被移进堆栈，最终乘法将早于加法被运算。</p>
+<p></p>
+<p>CUP系统根据这样的声明，为每个终结符赋予相应的优先级。没有声明优先级的终结符的优先级被认为是最低的。CUP也对由终结符和非终结符组成的规则赋予一定的优先级，相应规则的优先级被认为与规则最后出现的终结符的优先级相同，如果某条规则中没有终结符，那这条规则就被认为具有最低的优先级。例如，这样一条规则：expr::=expr TIMES expr，会被认为与TIMES具有相同的优先级。在解析的过程中，如果出现移进/规约(shift/reduce)冲突，解析器将决定是将一个具有较高的优先级终结符移进堆栈，还是认为规则具有较高的优先级而将其解析。如果一个终结符具有较高的优先级，它将被移进堆栈，而如果一条规则具有较高的优先级，它就会被规约(即被解析器解析)。如果两者具有相同的优先级，那么终结符的结合性将决定解析器的执行动作。</p>
+<p></p>
+<p>每个终结符的结合性声明同样是在优先级与结合性部分指定的。有三种类型的结合性，分别是：左结合(left)、右结合(right)、不结合(nonassoc)。结合性同样用来处理移进/规约(shift/reduce)冲突，但是仅当终结符与规则具有相同的优先级时才发挥作用，在这种情况下，如果一个可以执行移进动作的终结符是左结合的，就会执行规约动作。这意味这，如果输入的是加法串3+4+5+6+7，以3+4开始，解析器将会从左向右一直执行规约动作。如果终结符的结合性是右结合，那么解析器会将其移进堆栈中，规约动作将会按照从右向左的顺序进行。因此，如果PLUS的结合性被声明为右结合，那么对于上面的加法串，6+7将会是第一个被执行规约动作。如果一个终结符被声明为不结合，如果有连续两个具有相同优先级而且结合性为不结合的终结符同时出现，将会发生错误。这对于比较运算非常有用，例如，输入串为6==7==8==9，解析器就会产生一个错误。如果“==”被声明为不结合，就会有一个错误发生。</p>
+<p></p>
+<p>所有未使用优先级与结合型声明的终结符，被认为具有最低的优先级。如果发生一个无法解决的移进/规约错误，CUP系统会报告一个错误。</p>
+<p></p>
+<p>语法</p>
+<p>CUP声明的最后一个部分是语法。这个部分往往由一个声明开始，这个声明是可选的，其声明形式为：</p>
+<pre><code>start with non-terminal;
+</code></pre>
+<p>这代表哪个非终结符是start或者goal非终结符。如果没有明确声明这样一个非终结符，则语法第一条规则的左边的非终结符将被指定为开始或目标非终结符。在每次成功解析后，CUP会返回一个java_cup.runtime.Symbol类型的对象，这个对象中的实例变量包含解析到的最终结果。</p>
+<p></p>
+<p>语法往往开始于start声明之后，每条规则最左边是一个非终结符，接着是一个“::=”符号，紧跟着是零个或多个动作、终结符、非终结符，再接着是一个可选的语境优先级分配，最后由一个分号结束。</p>
+<p></p>
+<p>每个在右边的符号，都可以用一个标签标记，也可以不标记。标签放在符号的右边，与符号用一个冒号(:)隔开。标签名在每条规则中必须是唯一的，定义标签后，就可以在动作代码中使用用来表示所代表符号在运行期的值。一旦定义了标签，就有两个变量紧接着被定义，分别是标签名加上left和标签名加上right，这两个变量都是int类型的变量，分别代表该符号在输入文件的行列位置，这两个值必须由词法扫描器在扫描的过程中初始化。最后left和right值被赋给该符号所在的规则最终被规约到的非终结符。</p>
+<p></p>
+<p>如果一个非终结符可以由多种规则定义，那么这些规则应该放在一块声明。在这种情况下，有一个终结符开始，接着是一个“::=”符号，紧接着就是多条规则，每条规则由“|”分开，所有的规则结束后，由一个分号终止。</p>
+<p></p>
+<p>语义动作在每条规则的右边出现，表现为内嵌java代码串，放置在{:……:}中间。当代码串所在的规则被解析到时，代码串就由parser负责执行。注意，解析器在将要规约一条规则的时候，会再从输入文件中读一个符号，因为解析器为了更准确的解析规则，需要更多的预读字符。</p>
+<p></p>
+<p>在被分配优先级的规则右边的所有符号和动作之后是语境优先级分配。语境优先级分配，允许一条规则不必依赖于规则最后一个终结符的优先级。上面解析器规范样例就给出了一个很好的例子：</p>
+<pre><code>precedence left PLUS, MINUS;
+
+precedence left TIMES, DIVIDE, MOD;
+
+precedence left UMINUS;
+
+expr ::=    MINUS expr:e{: RESULT = new Integer(0 - e.intValue()); :} 
+
+                  %prec UMINUS
+</code></pre>
+<p>这里，这条规则的优先级被声明为与UMINUS的优先级相同，因此解析器可以根据MINUS是一个一元符号或者是真正的减法操作，而给MINUS两个不同的优先级。</p>
+<p></p>
+<h3 id="第三章使用cup">第三章使用CUP</h3>
+<p>正如上面提到的，CUP是由Java开发的。为了调用CUP系统，你应该使用Java解释器(命令行中的java指令)调用静态方法java_cup.Main()，向其传递一组包含选项的字符串。假设是在类Unix系统中，最简单的方法，就是直接用下面这样一条指令在命令行中调用：</p>
+<p>java java_cup.Main options &lt; inputfile</p>
+<p>一旦开始运行，CUP需要从标准终端获得一个规范文件，并产生两个Java源文件作为输出。从CUP版本0.10k开始，最终的命令行参数可以是一个文件名，在这种情况下，CUP将会从指定的文件中读入规范文件，而不是从标准终端上获得。</p>
+<p></p>
+<p>除了规范文件外，CUP的行为可以通过设定不同的选项来改变。合法的选项保存在Main.java的文档中，下面给出这些选项的说明：</p>
+<p>-package name</p>
+<p>指定生成的parser和sym类应该被放置在的包的名字，默认情况下，及不使用这个选项，这些类将被放置在规范文件所在的目录下。</p>
+<p>-parser name</p>
+<p>指定生成的解析器文件的名字。默认情况下，解析器被命名为parser。</p>
+<p>-symbols name</p>
+<p>指定生成的符号表的名字。默认情况下，其名字为sym。</p>
+<p>-interface</p>
+<p>将符号表生成为接口，而不是默认情况下的类。</p>
+<p>-nonterms</p>
+<p>在符号表类内生成代表非终结符的常量，尽管解析器并不需要这些常量，然而在调试一个生成的解析器时，可以访问到这些常量，将会得到非常有用信息。</p>
+<p>-expect number</p>
+<p>在系统根据规范文件创建解析器时，在运行期可能会检测到一些含糊的规则，被称之为冲突(conflict)。一般情况下，解析器不能决定是应该移进(读入下一个符号)还是应该规约(用一条规则的左边的符号代替其右边的定义的规则，即解析一条规则)。这通常被称之为移进/规约冲突(shift/reduce conflict)。类似的，解析器面对两条不同的规则不能决定应该规约哪一条时，就会发生规约/规约冲突(reduce/reduce conflict)。通常情况下，如果发生一个或多个这样的冲突，系统就会中断构造解析器。在一个深思熟虑的系统中，在这些冲突的发生时，中断系统将会是非常有益的。CUP参照了YACC的做法，用移进解决移进/规约冲突，对于规约/规约冲突优先规约“最高优先级”规则(即在规范中最先被定义的规则)。为了使系统能够自动的处理这些冲突，应该在-expect选项中给出有多少这样的冲突是被允许的。已经用优先级和结合性解决的冲突，在生成系统的时候不会报告。</p>
+<p>-compact_red</p>
+<p>使用此选项可以实现对表压缩优化。特别的，使用这个选项，可以将解析动作表中每行最普通的规约条目作为该行的默认条目，这样可以明显的节约解析表需要的空间，否则解析表会增长很大。这种优化可以将所有的错误条目放置到一行中，这一行默认使用一条规约条目，这可能看起来有些奇怪，如果没有正确的处理，就有可能使生成的解析器无法正常工作。可是，这样一些改变确实继承自LALR解析器(与标准LR解析器相比)，而且由此生成的解析器仍然无法越过第一条可以被检测到错误的条目。然而，这种解析器在检测到错误之前会做一些额外的错误规约，因此可能会减弱解析器错误恢复的能力(如果要相信了解这种压缩技术，请参看引用[2]244-247页，或者引用[3]190-194页)。</p>
+<p>这个选项通常应用在Java字节码中的表级压缩优化。然而CUP0.10h引入了一种字符串编码方法。</p>
+<p>-nowarn</p>
+<p>这个选项，不报告系统产生的所有警告信息(与错误信息相对)。</p>
+<p>-nosummary</p>
+<p>通常情况下，在解析结束的时候，系统会打印一个总结列表，包括终结符及非终结符的数量，解析状态等。这个选项，会阻止系统打印上述信息。</p>
+<p>-progress</p>
+<p>这个选项，使系统打印一些代表系统进度的简短信息，系统进度通过解析器生成过程的各个部分获得。</p>
+<p>-dump_grammar</p>
+<p>-dump_states</p>
+<p>-dump_tables</p>
+<p>-dump</p>
+<p>上面这些选项使系统分别显示人类可读的语法、解析器构建状态(在解决解析冲突的时候经常用到)及解析表(很少被用到)。-dump这个选项可以使系统生成上述所有的信息。</p>
+<p>-time</p>
+<p>这个选项，将会向系统产生的信息中加入详细的时间信息，这通常仅仅对系统的维护进程有用。</p>
+<p>-debug</p>
+<p>这个选项，会使系统生成其运行时产生的大量的内部调试信息。这些信息通常只对系统的维护进程有用。</p>
+<p>-nopositions</p>
+<p>这个选项，会阻止CUP生成代码将终结符的行(left)和列(right)值传送给非终结符，以及从非终结符传送给终结符。如果这样的行和列值在解析器中不使用，系统就不会生成这些位置信息，从而使系统节约一些运行期的运算量。这个选项使系统不再包含行(left)和列(right)的变量，因此一些引用这些变量的代码会使系统产生错误。</p>
+<p>-noscanner</p>
+<p>CUP0.10j改进了词法扫描器(scanner)的集成，并推出了一种新的接口，java_cup.runtime.Scanner。默认情况下，生成的解析器需要使用这个接口，这意味着这些解析器将不能使用比0.10j更老的版本的CUP运行时库(java_cup.runtimes)。如果你的解析器不使用这种新的词法扫描器(scanner)接口提供的功能，你就应该使用-noscanner选项来阻止解析器对java_cup.runtime.Scanner接口的引用，从而保持与CUP老版本的兼容。对于大多数人来说，是没有理由这样做的。</p>
+<p>-version</p>
+<p>在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。</p>
+<h3 id="第四章-定制解析器">第四章 定制解析器</h3>
+<p>每个生成的解析器，都包含三个类。sym类(可以使用-symbols选项改名)包含了一系列的int型常量，每个代表一个终结符，如果使用了-nonterms选项，也可以将非终结符(non-terminals)包含进来。parser类(可以使用-parser选项重命名)事实上包含两个类定义，其中parser类为公共类真正的实现了解析器，另一个CUP<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>a</mi><mi>c</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi><mi mathvariant="normal">为</mi><mi mathvariant="normal">非</mi><mi mathvariant="normal">公</mi><mi mathvariant="normal">有</mi><mi mathvariant="normal">类</mi><mi mathvariant="normal">囊</mi><mi mathvariant="normal">括</mi><mi mathvariant="normal">了</mi><mi mathvariant="normal">规</mi><mi mathvariant="normal">范</mi><mi mathvariant="normal">文</mi><mi mathvariant="normal">件</mi><mi mathvariant="normal">中</mi><mi mathvariant="normal">内</mi><mi mathvariant="normal">嵌</mi><mi mathvariant="normal">的</mi><mi mathvariant="normal">所</mi><mi mathvariant="normal">有</mi><mi mathvariant="normal">语</mi><mi mathvariant="normal">义</mi><mi mathvariant="normal">动</mi><mi mathvariant="normal">作</mi><mi mathvariant="normal">代</mi><mi mathvariant="normal">码</mi><mi mathvariant="normal">以</mi><mi mathvariant="normal">及</mi><mi>a</mi><mi>c</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi><mi mathvariant="normal"> </mi><mi>c</mi><mi>o</mi><mi>d</mi><mi>e</mi><mi mathvariant="normal">声</mi><mi mathvariant="normal">明</mi><mi mathvariant="normal">中</mi><mi mathvariant="normal">包</mi><mi mathvariant="normal">含</mi><mi mathvariant="normal">的</mi><mi mathvariant="normal">代</mi><mi mathvariant="normal">码</mi><mi mathvariant="normal">。</mi><mi mathvariant="normal">除</mi><mi mathvariant="normal">了</mi><mi mathvariant="normal">用</mi><mi mathvariant="normal">户</mi><mi mathvariant="normal">支</mi><mi mathvariant="normal">持</mi><mi mathvariant="normal">代</mi><mi mathvariant="normal">码</mi><mi mathvariant="normal">外</mi><mi mathvariant="normal">，</mi><mi mathvariant="normal">这</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">类</mi><mi mathvariant="normal">包</mi><mi mathvariant="normal">含</mi><mi mathvariant="normal">一</mi><mi mathvariant="normal">个</mi><mi mathvariant="normal">方</mi><mi mathvariant="normal">法</mi><mi mathvariant="normal">，</mi><mi>C</mi><mi>U</mi><mi>P</mi></mrow><annotation encoding="application/x-tex">action为非公有类囊括了规范文件中内嵌的所有语义动作代码以及action code声明中包含的代码。除了用户支持代码外，这个类包含一个方法，CUP</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.69444em;vertical-align:0em;"></span><span class="mord mathdefault">a</span><span class="mord mathdefault">c</span><span class="mord mathdefault">t</span><span class="mord mathdefault">i</span><span class="mord mathdefault">o</span><span class="mord mathdefault">n</span><span class="mord cjk_fallback">为</span><span class="mord cjk_fallback">非</span><span class="mord cjk_fallback">公</span><span class="mord cjk_fallback">有</span><span class="mord cjk_fallback">类</span><span class="mord cjk_fallback">囊</span><span class="mord cjk_fallback">括</span><span class="mord cjk_fallback">了</span><span class="mord cjk_fallback">规</span><span class="mord cjk_fallback">范</span><span class="mord cjk_fallback">文</span><span class="mord cjk_fallback">件</span><span class="mord cjk_fallback">中</span><span class="mord cjk_fallback">内</span><span class="mord cjk_fallback">嵌</span><span class="mord cjk_fallback">的</span><span class="mord cjk_fallback">所</span><span class="mord cjk_fallback">有</span><span class="mord cjk_fallback">语</span><span class="mord cjk_fallback">义</span><span class="mord cjk_fallback">动</span><span class="mord cjk_fallback">作</span><span class="mord cjk_fallback">代</span><span class="mord cjk_fallback">码</span><span class="mord cjk_fallback">以</span><span class="mord cjk_fallback">及</span><span class="mord mathdefault">a</span><span class="mord mathdefault">c</span><span class="mord mathdefault">t</span><span class="mord mathdefault">i</span><span class="mord mathdefault">o</span><span class="mord mathdefault">n</span><span class="mord"> </span><span class="mord mathdefault">c</span><span class="mord mathdefault">o</span><span class="mord mathdefault">d</span><span class="mord mathdefault">e</span><span class="mord cjk_fallback">声</span><span class="mord cjk_fallback">明</span><span class="mord cjk_fallback">中</span><span class="mord cjk_fallback">包</span><span class="mord cjk_fallback">含</span><span class="mord cjk_fallback">的</span><span class="mord cjk_fallback">代</span><span class="mord cjk_fallback">码</span><span class="mord cjk_fallback">。</span><span class="mord cjk_fallback">除</span><span class="mord cjk_fallback">了</span><span class="mord cjk_fallback">用</span><span class="mord cjk_fallback">户</span><span class="mord cjk_fallback">支</span><span class="mord cjk_fallback">持</span><span class="mord cjk_fallback">代</span><span class="mord cjk_fallback">码</span><span class="mord cjk_fallback">外</span><span class="mord cjk_fallback">，</span><span class="mord cjk_fallback">这</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">类</span><span class="mord cjk_fallback">包</span><span class="mord cjk_fallback">含</span><span class="mord cjk_fallback">一</span><span class="mord cjk_fallback">个</span><span class="mord cjk_fallback">方</span><span class="mord cjk_fallback">法</span><span class="mord cjk_fallback">，</span><span class="mord mathdefault" style="margin-right:0.07153em;">C</span><span class="mord mathdefault" style="margin-right:0.10903em;">U</span><span class="mord mathdefault" style="margin-right:0.13889em;">P</span></span></span></span>do_action，包含了一个大的switch语句，用来选择和执行各种各样的支离破碎的用户指定的语义动作代码。一般情况下，所有的名字都以CUP$为前缀，以保留作为CUP生成的内部代码使用。</p>
+<p></p>
+<p>parser类包含了实际的生成的解析器，该类是java_cup.time.lr_parser的子类，java_cup.time.lr_parser类实现了一个通用的器的表驱动框架。生成的parser类，为通用的LR解析器表驱动框架提供了一系列的表。其中的三个表如下：</p>
+<p>规则表</p>
+<p>为语法中的每条规则，提供了左值非终结符的数量，以及右侧符号的长度。</p>
+<p>动作列表</p>
+<p>在每个现行符号在遇到一种状态时的动作，其中包括移进、规约、错误。</p>
+<p>reduce-goto表</p>
+<p>在每次规约之后指示应该移进哪个状态。(注意：动作列表和reduce-goto表不是采用简单的数组存储的，而是使用一种压缩的链表结构，这样可以在很大程度上节约存储空间，详情请参阅运行时系统源代码。)</p>
+<p></p>
+<p>除了解析表外，生成的(或继承)的代码会提供一系列的方法来定制生成的解析器。这些方法中的一些是取自规范文件中的部分代码，使用这种方法可以直接定制解析器。另一些方法则是由lr_parser基类提供的，这些方法在新版本中(通过parser code声明)可以被覆盖以定制解析器系统。能够被定制的方法如下所示：</p>
+<p>Public void user_init():</p>
+<p>这个方法被解析器首先调用来从词法扫描器获取第一个符号，这个方法的主体包含规范文件中的init with字句。</p>
+<p>Public java_cup.runtime.Symbol scan()</p>
+<p>这个方法将词法扫描器囊括在内，每次解析器需要一个新的终结符时就会调用这个方法。这个方法的主体在当前版本包含规范文件中的scan with字句。</p>
+<p>public java_cup.runtime.Scanner getScanner()：</p>
+<p>返回默认的词法扫描器。参看第五章。</p>
+<p>public void setScanner(java_cup.runtime.Scanner s)：</p>
+<p>设置默认的词法扫描器。参看第五章。</p>
+<p>public void report_error(String message, Object info)：</p>
+<p>每当要发布错误信息时，都应当调用该方法。改方法的默认实现是，第一个参数提供需要打印到错误流上的文本，第二个参数则被忽略。为了实现一个更复杂的错误报告机制，典型的做法是重写这个方法。</p>
+<p>public void report_fatal_error(String message, Object info)：</p>
+<p>当一个不可恢复的错误发生时，应当调用这个方法。它通过调用report_error()方法报告错误信息，然后调用done_parsing()方法中断解析，最后抛出异常。一般而言，当解析过程应当被提前终止的时候都应当调用done_parsing()方法。</p>
+<p>public void syntax_error(Symbol cur_token)：</p>
+<p>一旦一个语法错误被检查到、尝试错误恢复之前，语法解析器将调用这个方法。这个方法的默认实现是，调用report_error(&quot;Syntax error&quot;, null);方法。</p>
+<p>public void unrecovered_syntax_error(Symbol cur_token)：</p>
+<p>当解析器遇到无法恢复的语法错误时，调用这个方法。其默认的实现是：report_fatal_error(&quot;Couldn't repair and continue parse&quot;, null);.</p>
+<p>protected int error_sync_size()：</p>
+<p>这个方法返回解析器在成功的认定一个错误时应该成功的解析多少个符号。默认的实现是返回3。低于2的值不被推荐。详细情况请参看错误恢复一章。</p>
+<p></p>
+<p>解析过程是由public Symbol parse()方法实现的。这个方法首先取得每个解析表的引用，接着初始化一个CUP$action对象(通过调用protected void init_actions()方法)；然后调用user_init()方法,接着通过调用scan()方法取得第一个预读符号；然后开始解析，知道done_parsing()方法被调用(这个方法是被自动调用的，例如，当解析一个规则后)。它会返回一个包含开始规则值的实例变量的符号对象，或者null如果没有值需要返回。</p>
+<p></p>
+<p>除了普通的解析器之外，系统提供了解析器的带调试功能的版本。它的功能跟普通的解析器没有差别，只不过会默认通过调用public void debug_message(String mess)方法将调试信息打印到错误输出流(System.err)。</p>
+<p>基于以上的例程，可以通过下面的代码调用一个CUP解析器。</p>
+<pre><code>      /* create a parsing object */
+
+      parser parser_obj = new parser();
+
+      /* open input files, etc. here */
+
+      Symbol parse_tree = null;
+
+      try {&lt;!-- --&gt;
+
+          if (do_debug_parse)
+
+             parse_tree = parser_obj.debug_parse();
+
+          else
+
+          parse_tree = parser_obj.parse();
+
+      } catch (Exception e) {&lt;!-- --&gt;
+
+        /* do cleanup here - - possibly rethrow e */
+
+      } finally {&lt;!-- --&gt;
+
+    /* do close out here */
+
+      }
+</code></pre>
+<h3 id="第五章-扫描器借口">第五章 扫描器借口</h3>
+<p>鉴于在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。在调用CUP的时候指定-version选项可以使系统打印当前工作的CUP版本。这使得在引用其他的环境变量(Makefiles)、安装脚本及其他应用程序需要知道CUP版本的时候可以自动获取。java_cup.runtime.Scanner接口，其定义如下：</p>
+<pre><code>package java_cup.runtime;
+
+public interface Scanner {&lt;!-- --&gt;
+
+    public Symbol next_token() throws java.lang.Exception;
+
+}
+</code></pre>
+<p>除了在第四章中介绍的方法之外，java_cup.runtime.lr_parser还拥有两个存取方法，setScanner() 和 getScanner()。Scan()方法的默认实现如下：</p>
+<pre><code>public Symbol scan() throws java.lang.Exception {&lt;!-- --&gt;
+
+    Symbol sym = getScanner().next_token();
+
+    return (sym!=null) ? sym : new Symbol(EOF_sym());
+
+  }
+</code></pre>
+<p>生成的解析器也拥有一个带Scanner参数的构造器，然后调用setScanner()设定扫描器。在大多数情况下，init with和scan with会被忽略。你可以简单的创建一个解析器，使其引用到你所期望的扫描器，代码如下：</p>
+<p>parser parser_obj = new parser(new my_scanner());</p>
+<p>或者在解析器被创建之后再设定扫描器，代码如下：</p>
+<pre><code>/* create a parsing object */
+
+parser parser_obj = new parser();
+
+/* set the default scanner */
+
+parser_obj.setScanner(new my_scanner());
+</code></pre>
+<p></p>
+<p>需要注意的是，解析器使用预读策略，不建议在解析的过程中重新设定词法扫描器。如果在没有事先调用setScanner()设定扫描器，就调用sann()方法，系统将会抛出一个NullPointerException异常。</p>
+<p></p>
+<p>作为一个词法扫描器集成的例子，下面给出了使用JLex或者JFlex生成扫描器的时候应该添加的三行代码：</p>
+<pre><code>%implements java_cup.runtime.Scanner
+
+%function next_token
+
+%type java_cup.runtime.Symbol
+</code></pre>
+<p>JLex 1.2.5及更新的版本中的指令%cup是对以上三行代码的缩减。在解析器中调用JLex扫描器非常的非常简单，如下所示：</p>
+<p>parser parser_obj = new parser( new Yylex( some_InputStream_or_Reader));</p>
+<p></p>
+<p>注意：CUP在没有问题的情况下会处理JLex/JFLex遇到文件结束符(EOF)返回空值的规范，因此在JLex规范文件中不再需要%eofval指令(这项特性是在CUP0.1k中加入的)。在CUP发行版中的简单计算器例子中展示了如何利用CUP的扫描器集成特性添加一个手工编写的扫描器。CUP网站中也提供了一个最小的CUP/JLex集成实例以供学习。</p>
+<h3 id="第六章-错误恢复">第六章 错误恢复</h3>
+<p>使用CUP构建解析器的最后一个重要的方面是支持动态错误恢复。CUP使用了跟YACC相同的错误恢复机制。特别的，CUP支持一种特殊的错误符号，简单的使用error表示。这个符号扮演了一种特殊的非终结符角色，它能够匹配错误输入序列，而非一个用规则定义的字符串。</p>
+<p></p>
+<p>这个错误符号仅当检测到一个语法错误的时候才发挥作用。一个语法错误被检测到后，解析器使用error来代替输入符号序列的一部分，然后继续解析。作为实例，我们可能这样定义一条规则：</p>
+<pre><code>stmt ::= expr SEMI | while_stmt SEMI | if_stmt SEMI | ... |
+
+        error SEMI
+
+         ;
+</code></pre>
+<p>这条规则表明，如果输入序列无法匹配stmt正常的规则，这表明产生了一个语法错误，错误恢复机制在这个时候就应该发挥作用，它应该跳过错误符号序列(也就是用error符号来匹配和代替这个错误的符号序列)，一直到解析器可以继续解析的位置，这个位置可以是一个分好，或者是附加在一个语句后的合法的上下文环境。一个错误能够被认定为得到恢复，只有在error符号后面有足够数量的符号能够被成功的解析。这个符号的数量有解析器的error_sync_size()方法决定，默认值为3。</p>
+<p></p>
+<p>具体而言，解析器首先从解析栈顶部查找错误发生时与其有关的最近的一个状态。这有点类似于从表示更具体的规则(例如：一种特定的语句)向更泛化或封闭的规则(例如：所有语句的一般形式，或者是可以代表所有声明的规则)进行解析，直到遇到一个错误恢复规则。解析器一旦被配置成立即错误恢复(通过弹栈到第一个上述状态)的策略，它就会跳过错误符号序列去寻找能够继续解析的位置。在丢弃了错误符号序列的每个符号之后，解析器将试图向前解析，这个时候不会执行内嵌的语义代码。如果解析器在跳过足够数量的符号后能够成功的解析，输入序列就会被重新定位到恢复前的位置，解析器将重新开始解析，这个时候解析器要执行所有的内嵌动作。如果解析器仍然不能继续解析，当前的符号就会被丢弃，解析器将继续试图向前解析。如果已经到达了输入文件的结尾，仍然无法成功的恢复，或者说没有找到任何与错误恢复相符的状态，错误恢复就宣告失败。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Doris编译指南]]></title>
+        <id>https://nanfeng1999.github.io/doris-bian-yi-zhi-nan/</id>
+        <link href="https://nanfeng1999.github.io/doris-bian-yi-zhi-nan/">
+        </link>
+        <updated>2023-05-11T13:22:34.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="wsl-环境配置">WSL 环境配置</h2>
+<p>https://zhuanlan.zhihu.com/p/466001838</p>
+<h2 id="java和c环境配置">JAVA和C++环境配置</h2>
+<p>机器环境：WSL2.0 Ubuntu20.04</p>
+<p>连接机器，复制代码</p>
+<pre><code class="language-shell">git clone https://github.com/nanfeng1999/doris #需要换成自己的fork地址
+</code></pre>
+<h3 id="java">JAVA</h3>
+<p>安装一些必须的第三方库</p>
+<pre><code class="language-shell">sudo apt update # 更新软件源
+sudo apt install build-essential openjdk-8-jdk maven cmake byacc flex automake libtool-bin bison binutils-dev libiberty-dev zip unzip libncurses5-dev curl git ninja-build python # 安装java 和 maven
+sudo apt install nodejs npm # 安装nodejs
+</code></pre>
+<p>npm换源</p>
+<pre><code class="language-shell">npm config set registry https://registry.npm.taobao.org # npm换源
+</code></pre>
+<p>maven设置仓库位置，仓库位置放在<code>~/repository</code>下面，如果放在/usr下面的话可能因为权限不够导致出错</p>
+<pre><code class="language-shell">vim /usr/share/maven/conf/settings.xml
+</code></pre>
+<p>在localRepository处加入以下内容</p>
+<pre><code class="language-xml">&lt;localRepository&gt;~/repository&lt;/localRepository&gt; 
+</code></pre>
+<p>maven设置阿里源</p>
+<pre><code class="language-shell">vim /usr/share/maven/conf/settings.xml
+</code></pre>
+<p>在mirrors处加入以下内容</p>
+<pre><code class="language-xml">&lt;mirror&gt;  
+	&lt;id&gt;alimaven&lt;/id&gt;
+	&lt;name&gt;aliyun maven&lt;/name&gt;
+	&lt;url&gt;http://maven.aliyun.com/nexus/content/groups/public/&lt;/url&gt;
+	&lt;mirrorOf&gt;central&lt;/mirrorOf&gt;
+&lt;/mirror&gt;
+</code></pre>
+<h3 id="c">C++</h3>
+<p>安装LDB toolchain，通过这种方式编译更加的快捷</p>
+<p>从<a href="https://github.com/amosbird/ldb_toolchain_gen/releases">这里</a>中下载最新版本的LDB toolchain并安装，或者使用以下命令</p>
+<pre><code class="language-shell">wget https://github.com/amosbird/ldb_toolchain_gen/releases/download/v0.17/ldb_toolchain_gen.sh
+sudo bash ldb_toolchain_gen.sh /usr/ldb_toolchain # 执行脚本 安装目录
+</code></pre>
+<h2 id="安装doris的第三方库依赖">安装Doris的第三方库依赖</h2>
+<p>Doris的第三方库位于~/doris/thirdparty中，如果直接使用<code>bash build.sh</code>命令编译doris的话会首先将第三方库下载下来，然后进行编译，以上两步的操作较慢，建议直接下载编译好的第三方库。获取doris第三方库的方式有以下三种</p>
+<p><strong>方法一：下载编译好的第三方库</strong></p>
+<p>从<a href="https://github.com/apache/doris-thirdparty/releases">这里</a>下载最新的已经编译好的第三方库 解压会得到一个 <code>installed/</code> 目录，将这个目录拷贝到 <code>thirdparty/</code> 目录下</p>
+<pre><code class="language-shell"># 使用wget下载 走代理下载 速度比较快 如果开了梯子那么可以不走代理下载 删除https://ghproxy.com/即可
+wget https://ghproxy.com/https://github.com/apache/doris-thirdparty/releases/download/automation/doris-thirdparty-prebuilt-linux-x86_64.tar.xz
+# 解压压缩包
+tar -xf doris-thirdparty-prebuilt-linux-x86_64.tar.xz
+</code></pre>
+<p>或者也可以直接在github网页上下载该包，然后通过文件传输协议上传到远程服务器上</p>
+<p><strong>方法二：手动修改失效的下载链接</strong></p>
+<p>Doris 所依赖的第三方库的下载连接都在 <code>thirdparty/vars.sh</code> 文件内。手动修改有问题的下载连接和对应的 MD5 值。</p>
+<p>这种方式需要下载好之后再进行编译</p>
+<p><strong>方法三：使用第三方下载仓库：</strong></p>
+<pre><code class="language-shell">export REPOSITORY_URL=https://doris-thirdparty-repo.bj.bcebos.com/thirdparty
+sh build-thirdparty.sh
+</code></pre>
+<p>这种方式需要下载好之后再进行编译</p>
+<h2 id="配置doris的编译环境">配置Doris的编译环境</h2>
+<p>进入doris的主目录</p>
+<p><code>vim custom_env.sh</code> 输入以下内容</p>
+<pre><code class="language-shell"># 以下路径全部根据自己的实际情况进行修改
+# 下载的JVM路径，如果是apt-get安装的 就是下面这个路径
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+export PATH=/usr/bin/:$PATH
+export PATH=$JAVA_HOME/bin:$PATH
+# 下载的maven路径，如果是apt-get安装的 就是下面这个路径
+export PATH=/usr/share/maven/bin:$PATH
+# 下载的ldb_toolchain路径
+export PATH=/usr/ldb_toolchain/bin:$PATH
+# 下载的第三方库路径
+export DORIS_THIRDPARTY=~/project/doris/thirdparty # doris的第三方库所在目录，根据具体情况修改
+# 编译类型 ASAN代表没有优化 适合DEBUG
+export BUILD_TYPE=ASAN
+</code></pre>
+<h2 id="编译fe">编译FE</h2>
+<pre><code class="language-shell">bash build.sh --fe
+</code></pre>
+<h2 id="编译be">编译BE</h2>
+<pre><code class="language-shell">bash build.sh --be
+</code></pre>
+<h2 id="可能出现的问题">可能出现的问题</h2>
+<p><strong>找不到定义或者包或者中间文件</strong></p>
+<p>在编译fe的时候可能报错找不到中间生成的文件夹，说明本用户没有权限在maven仓库中下载第三方包，这个时候把仓库转移到有权限的位置</p>
+<figure data-type="image" tabindex="1"><img src="https://nanfeng1999.github.io/post-images/1683947615041.png" alt="" loading="lazy"></figure>
+<p>在编译be的时候可能报错找不到定义，说明本用户编译be的目录没有写入权限，这个时候建议使用sudo编译或者将doris项目转移到有权限的目录中去</p>
+<figure data-type="image" tabindex="2"><img src="https://nanfeng1999.github.io/post-images/1683947631025.png" alt="" loading="lazy"></figure>
+<p>其他情况以此类推</p>
+<p><strong>编译BE内存不够直接dump</strong></p>
+<pre><code class="language-shell">sudo bash build.sh --be -j 2
+</code></pre>
+<p>编译BE默认使用的核心数是机器CUP核心数/3 + 1</p>
+<p>如果使用默认的核心数进行编译导致内存不够 那么可以尝试降低使用的CUP核心数</p>
+<p>通过 -j 指定，使用的核心数越少，占用的内存越少，但是相对而言，编译花费的时间越多</p>
+<p>此外，还可以采用clang来编译BE，内存占用相对于gcc少了很多，在ldb_toolchain的v0.14版本通过在命令行中<code>export DORIS_TOOLCHAIN=clang</code>来指定编译器，通过这种方式可以使用更多的核心数来编译代码</p>
+<p><strong>maven某些第三方库下载太慢</strong></p>
+<p><img src="https://nanfeng1999.github.io/post-images/1683811538334.png" alt="" loading="lazy"><br>
+编译fe的时候有一些比较大的包在阿里源中不存在，这个时候建议翻墙，或者使用其他源替换一下试试</p>
+<p>翻墙指南：https://v2raya.org/docs/prologue/installation/debian/</p>
+<p><strong>无法解析包</strong></p>
+<figure data-type="image" tabindex="3"><img src="https://nanfeng1999.github.io/post-images/1683811556553.png" alt="" loading="lazy"></figure>
+<p>翻墙之后可能会出现这个错误，多尝试几次编译即可</p>
+<p><strong>编译fe超出了WSL最大允许的内存</strong></p>
+<p>增大WSL允许的最大内存即可，推荐15GB以上</p>
+<p>在文件夹地址栏中输入<code>%homepath%</code>进入用户目录，在用户目录中创建文件<code>.wslconfig</code>，写入如下内容然后重启WSL的ubuntu系统</p>
+<pre><code class="language-shell">[wsl2]
+processors=8
+memory=15GB
+swap=8GB
+localhostForwarding=true
+</code></pre>
+<p><strong>找不到类定义</strong></p>
+<figure data-type="image" tabindex="4"><img src="https://nanfeng1999.github.io/post-images/1683947651057.png" alt="" loading="lazy"></figure>
+<p>这是因为在<code>custom_env.sh</code>脚本中使用的maven环境和系统自带的maven环境不是同一套，将两者保持一致即可</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[MIT6.824 LAB 1: MapReduce]]></title>
+        <id>https://nanfeng1999.github.io/mit6824-lab-1-mapreduce/</id>
+        <link href="https://nanfeng1999.github.io/mit6824-lab-1-mapreduce/">
+        </link>
+        <updated>2023-02-18T02:54:35.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="目标">目标</h2>
+<p>本实验的目标是构建一个MapReduce系统，实现一个worker线程用来调用Map和Reduce函数、处理读写文件；实现一个coordinator 进程给works分配任务并处理失败的worker。实现步骤参考MapReduce论文，实验中使用coordinator代替master</p>
+<h2 id="实验提供">实验提供</h2>
+<p>src/main/mrsequential.go代码中提供了mapreduce的简单顺序实现，这个函数一次跑一遍map和reduce</p>
+<p>实验提供了两个MapReduce的应用：</p>
+<ul>
+<li>mrapps/wc.go提供了word-count</li>
+<li>mrapps/indexer.go代码提供了indexer</li>
+</ul>
+<p>运行word-count的步骤</p>
+<pre><code class="language-shell">$ cd ~/6.5840
+$ cd src/main
+$ go build -buildmode=plugin ../mrapps/wc.go
+$ rm mr-out*
+$ go run mrsequential.go wc.so pg*.txt
+$ more mr-out-0
+A 509
+ABOUT 2
+ACT 8
+...
+</code></pre>
+<p>输入是pg*.txt，输出是mr-out-0</p>
+<h2 id="实验任务">实验任务</h2>
+<p>实现一个分布式的MapReduce，它由两个程序组成： coordinator和worker.</p>
+<ul>
+<li>coordinator线程只有一个，worker程序可以有多个并且是并行执行</li>
+<li>在真实系统中workers运行在不同的机器中，在这个实验中只需要运行在一个机器上</li>
+<li>worker通过RPC和coordinator交流</li>
+<li>每个worker线程向coordinator请求一个任务，从一个或者多个文件中读取任务的输入，执行任务，最后把任务的输出写入到一个或者多个文件中</li>
+<li>coordinator线程需要注意，如果worker没有在合理的时间之内完成工作（本实验设置为10s），那么认为这个任务执行失败，将相同的任务分配给其他的worker</li>
+</ul>
+<p>在main/mrcoordinator.go和main/mrworker.go中有coordinator和worker线程的参考代码</p>
+<p>本实验需要实现的是mr/coordinator.go, mr/worker.go和mr/rpc.go中的接口</p>
+<p>运行word-count MapReduce应用的示例：</p>
+<pre><code class="language-shell">$ go build -buildmode=plugin ../mrapps/wc.go #构造插件
+$ rm mr-out*#删除之前的输出文件
+$ go run mrcoordinator.go pg-*.txt#pg-*.txt作为输入 每个文件都是一个Map任务的输入
+$ go run mrworker.go wc.so#另外打开一个窗口 使用wc插件运行workers
+$ cat mr-out-* | sort | more#显示输出内容
+A 509
+ABOUT 2
+ACT 8
+...
+</code></pre>
+<p>在main/test-mr.sh中提供了一些测试脚本，测试会检查</p>
+<ul>
+<li>wc和indexer这两个应用有没有输出正确</li>
+<li>是否并行运行Map和Reduce任务</li>
+<li>当worker运行任务崩溃能否正常恢复运行</li>
+</ul>
+<p><strong>一些规则：</strong></p>
+<ul>
+<li>
+<p>Map阶段应该将生成的中间键值对分配到nReduce（reduce任务数）个桶里面。每个Map应创建nReduce个中间文件，以供reduce任务使用。</p>
+<blockquote>
+<p>解释：假设有10个reduce任务，那么一个Map任务生成的中间键值对就要划分为10个桶，根据中间键值对的key哈希值判断放入哪个桶中，划分完毕之后把每个桶写入到对应的文件中，等待后续reduce任务的读取</p>
+</blockquote>
+</li>
+<li>
+<p>worker实现应该将第X个reduce任务的输出放在文件mr-out-X中</p>
+</li>
+<li>
+<p>mr-out-X文件每个Reduce函数输出应该包含一行。这一行应该用Go“%v %v”格式生成，第一个%v是键，第二个%v是值。</p>
+</li>
+<li>
+<p>worker应该将Map任务的输出放在当前目录下的文件中，以便稍后将它们作为Reduce任务的输入读取。</p>
+</li>
+<li>
+<p>main/mrcoordinator.go期望mr/coordinator.gif实现一个Done方法，该方法在MapReduce任务完全完成时返回true；此时，mrcoordinator.go将退出。</p>
+</li>
+<li>
+<p>当所有任务完成之后，worker应该退出，可以通过两种方式实现</p>
+<ul>
+<li>如果worker联系不上coordinator可以假设coordinator已经退出，此时任务全部完成</li>
+<li>coordinator中所有任务完成之后给worker发送&quot;退出任务&quot;</li>
+</ul>
+</li>
+</ul>
+<p><strong>提示：</strong></p>
+<ul>
+<li>
+<p><a href="https://pdos.csail.mit.edu/6.824/labs/guidance.html">Guidance page</a> 有一些关于开发和调试的小技巧</p>
+</li>
+<li>
+<p>一种可行的方法</p>
+<ul>
+<li>worker线程向coordinator线程发送索要task的rpc请求</li>
+<li>coordinator回复没有被处理的文件名</li>
+<li>worker读取文件，调用Map函数</li>
+</ul>
+</li>
+<li>
+<p>Map和Reduce函数都是从.so文件中载入的</p>
+</li>
+<li>
+<p>如果修改了mr/目录中的内容，需要使用命令<code>go build -buildmode=plugin ../mrapps/wc.go</code>重新build插件</p>
+</li>
+<li>
+<p>workers共享同一个文件系统，如果所有worker在同一台机器上这是很容易实现的，如果是在多台机器上的话需要一个全局的文件系统，如GFS</p>
+</li>
+<li>
+<p>Map生成的中间文件需要一个合理的名字如：mr-X-Y，X是Map任务号，Y是reduce的任务号</p>
+</li>
+<li>
+<p>worker的map任务代码需要一种方法来保存中间键值对到文件中去，并且它能够被后续的reduce任务正确的读取，一个合理的方式是使用encoding/json包</p>
+<pre><code class="language-go">// 编码
+enc := json.NewEncoder(file)
+for _, kv := ... {
+    err := enc.Encode(&amp;kv)
+    dec := json.NewDecoder(file)
+    // 解码    
+for {
+	var kv KeyValue
+	if err := dec.Decode(&amp;kv); err != nil {
+		break
+	}
+	kva = append(kva, kv)
+}
+</code></pre>
+</li>
+<li>
+<p>worker的Map部分可以使用ihash(key)函数来计算哈希</p>
+</li>
+<li>
+<p>可以从mrsequential.go中获取一些代码，如：读取Map的输入文件，对中间键值对进行排序（Map和Reduce任务之间），把Reduce的输出存储到文件当中</p>
+</li>
+<li>
+<p>coordinator是并发的，要记得锁住共享数据</p>
+</li>
+<li>
+<p>使用go run --race命令检测并发竞争</p>
+</li>
+<li>
+<p>reduce任务需要等待所有map任务都完成之后再开始</p>
+<ul>
+<li>
+<p>一个可行的办法是，worker周期性地向coordinator请求任务，在请求之间休眠一段时间</p>
+</li>
+<li>
+<p>另一个可行的办法是，RPC处理程序循环等待，可以使用time.Sleep()或sync.Cond。Go在其自己的线程中为每个RPC运行处理程序，因此一个处理程序正在等待不会阻止coordinator处理其他RPC</p>
+</li>
+</ul>
+</li>
+<li>
+<p>coordinator不能够区分崩溃的worker、存活但是因为某些原因停止工作的worker和正在执行但速度太慢的worker。最好的方法是让coordinator等待一段时间，然后放弃并将任务重新分发给不同的worker。在这个实验中，coordinator等待十秒钟之后，coordinator应该假设worker已经死亡</p>
+</li>
+<li>
+<p>如果您选择实现备份任务（第3.6节），请注意，我们测试您的代码在工作人员执行任务时不会调度无关任务，而不会崩溃。备份任务只能在一段相对较长的时间（例如，10秒）后安排</p>
+</li>
+<li>
+<p>要测试崩溃恢复，可以使用mrapps/crash.go应用程序插件。它在Map和Reduce函数中随机退出</p>
+</li>
+<li>
+<p>test-mr.sh在子目录mr-tmp中运行它的所有进程，所以如果出现问题，您想查看中间文件或输出文件，请查看该目录。可以随意临时修改test-mr.sh以在测试失败后退出，这样脚本就不会继续测试(并覆盖输出文件)</p>
+</li>
+<li>
+<p>test-mr-many.sh会连续多次运行test-mr.sh，您可能希望这样做是为了发现低概率的错误。它以运行测试的次数作为参数。您不应该并行运行多个test-mr.sh实例，因为协调器将重用同一个套接字，从而导致冲突</p>
+</li>
+<li>
+<p>Go RPC只发送名称以大写字母开头的结构字段。子结构的字段名也必须大写。</p>
+</li>
+<li>
+<p>当调用RPC call()函数时，reply结构体应该包含所有默认值。RPC调用应该是这样的:</p>
+<pre><code class="language-go">reply := SomeType{}
+call(..., &amp;reply)
+</code></pre>
+</li>
+</ul>
+<h2 id="实现思路">实现思路</h2>
+<p>coordinator启动的时候读取所有的文件名，每个文件名封装成一个Task，Task结构体如下：</p>
+<pre><code class="language-go">type Task struct {
+   ID       int		// 任务ID 用于超时检测 和 coordinator状态切换
+   Type     TaskType// 任务类型：MAP、REDUCE、QUIT、NO_TASK四种
+   FileName string  // MAP任务读取的文件名
+   NReduce  int		// reduce任务的数量
+   NMap     int		// map任务的数量
+   Deadline int64	// 任务截止日期，超过截止日期判断为超时，需要重新放入任务队列
+}
+</code></pre>
+<p>Task共分为四种类型：</p>
+<ul>
+<li>MAP：Map任务</li>
+<li>REDUCE：Reduce任务</li>
+<li>NO_TASK：空状态任务，当任务队列为空的时候返回，worker接收到之后休眠一段时间</li>
+<li>QUIT：退出任务，worker接收到之后直接退出</li>
+</ul>
+<p>coordinator结构体如下：</p>
+<pre><code class="language-go">type Coordinator struct {
+   // Your definitions here.
+   state   string        // 记录处于哪个阶段
+   nReduce int           // reduce任务数量
+   nMap    int           // map任务数量
+   taskQue chan *Task    // 任务队列
+   taskMap map[int]*Task // 任务列表，用于超时检测和状态切换
+   mu      sync.Mutex    // 锁
+}
+</code></pre>
+<p>coordinator启动后一共分为三个阶段，MAP、REDUCE和QUIT：</p>
+<ul>
+<li>MAP：初始化读取所有文件名封装成对应的Map任务，等待所有的MapTask都完成（开启一个单独的线程来检测是否map任务完成和有任务超时），都完成的话进入reduce阶段</li>
+<li>REDUCE：生成nReduce个reduce任务，等待所有的ReduceTask都完成（开启一个单独的线程来检测是否Reduce任务完成和有任务超时），都完成的话进入quit阶段</li>
+<li>QUIT：生成nReduce个quit任务，等待所有的QuitTask都完成（开启一个单独的线程来检测是否quit任务完成和有任务超时），都完成的话终止程序</li>
+</ul>
+<p>work启动后每间隔一段时间就去向coordinator要Task，根据获取任务的类型，执行不同的操作：</p>
+<ul>
+<li>如果是MapTask，那么读取文件，把文件内容放入map函数中得到返回的kv对，依次遍历kv对，使用hash函数写入到不同的文件中</li>
+<li>如果是ReduceTask，那么读取该任务负责的文件（根据reduce号，文件名格式是mr-X-Y，其中X代表Map号，Y代表Reduce号），合并内容，进行排序，输入reduce函数中得到输出，把输出保存到文件中去，文件命名格式mr-out-Y</li>
+<li>如果是NO_TASK类型任务，那么worker休眠一段时间</li>
+<li>如果是QuitTask，那么worker直接退出</li>
+</ul>
+<p>超时和状态切换：</p>
+<pre><code class="language-go">func (c *Coordinator) detector() {
+   for {
+      c.mu.Lock()
+      if len(c.taskMap) == 0 {
+         c.changeState()
+      } else {
+         c.taskTimeout()
+      }
+      c.mu.Unlock()
+
+      time.Sleep(100 * time.Millisecond)
+   }
+}
+</code></pre>
+<p>单独开启一个detector线程，每间隔一段时间检测一下任务完成情况，如果当前阶段任务全部完成那么进入下一阶段，否则检测是否有任务超时，如果存在超时任务那么将任务重新放入到任务队列中去</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[MIT6.830 LAB4 学习笔记]]></title>
+        <id>https://nanfeng1999.github.io/mit6830-lab4-xue-xi-bi-ji/</id>
+        <link href="https://nanfeng1999.github.io/mit6830-lab4-xue-xi-bi-ji/">
+        </link>
+        <updated>2023-02-12T14:59:27.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="mit6830-lab4-学习笔记">MIT6.830 LAB4 学习笔记</h1>
+<h2 id="背景知识">背景知识</h2>
+<h3 id="严格的二阶段锁协议">严格的二阶段锁协议</h3>
+<p>严格的两阶段加锁示意图</p>
+<figure data-type="image" tabindex="1"><img src="https://static.oschina.net/uploads/img/201707/17105326_2MZl.png" alt="输入图片说明" loading="lazy"></figure>
+<p>二阶段锁协议把事务分为加锁和解锁两个阶段。当事务需要对页面进行读写操作的时候需要提前对页面加锁，防止本事务执行过程中其他事务获取该页面并修改。在实际情况中由于SQL千变万化，很难判断在什么时候执行解锁，因此解锁阶段统一安排在事务提交或回滚的时候，这样可以降低实现的复杂度。</p>
+<p>参考链接：https://segmentfault.com/a/1190000038163191</p>
+<h3 id="事务的acid特性">事务的ACID特性</h3>
+<p>实现事务需要保证ACID四个特征</p>
+<p>**原子性：**事务要么全部执行完成，要不全部执行失败，不存在中间状态。在本实验中是二阶段锁协议保证的，如果在获取某一页的时候死锁或者超时会终止事务，将本事务修改过的页面内容直接丢弃（不可能存在把这页中其他事务修改的内容也丢弃，因为这个事务获取到这个页之后除非提交事务，否则一直持有该页面，不可能再被其他事务获取）。</p>
+<p>**一致性：**在事务开始之前和事务结束以后，数据库的完整性没有被破坏。由于原子性，数据库是事务一致的。其他一致性问题(例如，键约束)在SimpleDB中没有解决。</p>
+<p>**隔离性：**数据库允许多个并发事务同时对其数据进行读写和修改的能力，隔离性可以防止多个事务并发执行时由于交叉执行而导致数据的不一致。本实验是二阶段锁协议保证的，对页级别进行上锁，如果是不同的页那么不同的事务可以并发读写。</p>
+<p>**持久性：**保存到文件中即满足了持久性。</p>
+<h3 id="恢复和缓存管理">恢复和缓存管理</h3>
+<p>simpledb使用NO STEAL+FORCE的缓存管理策略，含义如下：</p>
+<ul>
+<li>NO STEAL：不能够淘汰被未提交事务锁住的赃页</li>
+<li>FORCE：事务提交之后需要强制把赃页保存到磁盘上</li>
+</ul>
+<p>参考链接：https://blog.csdn.net/Singularinty/article/details/80747290</p>
+<h3 id="锁条件">锁条件</h3>
+<p>锁分为独占锁和共享锁两种，它们应该满足以下条件：</p>
+<ul>
+<li>读取页面之前需要加共享锁</li>
+<li>写页面之前需要加独占锁</li>
+<li>同一个页面允许多个事务加共享锁</li>
+<li>同一个页面只允许一个事务加独占锁</li>
+<li>如果事务t是唯一一个在页面持有共享锁的事务，事务t可以把持有的锁升级为独占锁</li>
+</ul>
+<h3 id="死锁出现的原因">死锁出现的原因</h3>
+<p>一个用户A 访问表A（锁住了表A），然后又访问表B；另一个用户B 访问表B（锁住了表B），然后企图访问表A；这时用户A由于用户B已经锁住表B，它必须等待用户B释放表B才能继续，同样用户B要等用户A释放表A才能继续，这就死锁就产生了。</p>
+<p>参考链接：https://blog.csdn.net/qq_16681169/article/details/74784193</p>
+<h2 id="实验">实验</h2>
+<h3 id="exercise-1">Exercise 1</h3>
+<h4 id="练习要求">练习要求</h4>
+<p>在BufferPool中实现获取锁和释放锁的方法，建议实现页级锁</p>
+<ol>
+<li>修改getPage函数，在返回页面之前获取锁</li>
+<li>实现unsafeReleasePage函数，释放事务t在页面p上加的锁</li>
+<li>实现holdsLock，判断页面是否被事务t加锁</li>
+</ol>
+<h4 id="实现思路">实现思路</h4>
+<p>本练习的重点是实现BufferPool获取页面之前的加锁逻辑。</p>
+<p>新增一个LockManager类，用于管理BufferPool中页面的锁，每个页面都持有一个所队列。锁分为两种类型：写锁和读锁，写锁和其他锁互斥；读锁和读锁共享，读锁和写锁互斥。</p>
+<p>给页面加锁需要遵循以下几个规则：</p>
+<ul>
+<li>当前事务给当前页面加的是读锁
+<ul>
+<li>如果当前页面没有加任何锁，那么加锁成功</li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功</li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败</li>
+<li>如果当前页面加的是其他事务的读锁，可能有一个或者多个，那么在当前页面的读锁队列中加入当前事务加的读锁（如果已经存在直接返回即可），加锁成功</li>
+</ul>
+</li>
+<li>当前事务给当前页面加的是写锁
+<ul>
+<li>如果当前页面没有加任何锁，那么加锁成功</li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功。如果是读锁的话需要升级为写锁</li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败</li>
+<li>如果当前页面加的是其他事务的读锁，那么加锁失败</li>
+</ul>
+</li>
+</ul>
+<h3 id="exercise-2">Exercise 2</h3>
+<h4 id="练习要求-2">练习要求</h4>
+<p>需要检查两块地方：</p>
+<ul>
+<li>使用SeqScan操作读取元组的时候，迭代器调用getPage函数需要使用读锁</li>
+<li>使用insertTuple和deleteTuple增删元组的时候，调用getPage函数需要使用写锁</li>
+</ul>
+<p>需要注意的两种场景：</p>
+<ul>
+<li>
+<p>向HeapFile中添加一个新页面。什么时候将页面物理地写入磁盘。</p>
+</li>
+<li>
+<p>在insertTuple()中首先要寻找是否有空闲的slot，这个操作则会先获取每个页的写锁，一旦找到空闲slot就进行写入，但是这种操作在以下情况会占用大量的资源：没有空闲slot的情况下，会不断获取每个页的写锁而不释放。</p>
+</li>
+</ul>
+<h4 id="实现思路-2">实现思路</h4>
+<p>针对场景1：首先在磁盘中创建一个空白页，然后将空白页读取到BufferPool中，从BufferPool中获取空白页，最后在空白页插入元组，标记页为赃页</p>
+<p>针对场景2：在页面加入写锁，如果遍历发现没有空闲slot那么直接释放这个锁，这样违背了严格的二阶段锁协议（要求提交的时候统一释放锁），但是这样不会有影响，因为并没有对页面进行读写</p>
+<h3 id="exercise-3">Exercise 3</h3>
+<h4 id="练习要求-3">练习要求</h4>
+<p>实现NO STEAL策略</p>
+<p>因为在NO STEAL策略下事务没有提交的话修改不能够写入到磁盘当中，这意味着可以通过丢弃BufferPool中该事务修改的赃页，然后从磁盘中重新读取修改前的数据到BufferPool中这种方式实现事务的终止。所以，当BufferPool满淘汰页面的时候不可以淘汰赃页。</p>
+<blockquote>
+<p>另外，如果需要淘汰的页面被某个事务加锁也需要进行处理，如果把被事务加锁的页面也设置为不可淘汰页，会无法通过AbortEvictionTest系统测试，暂时还没有想到这种情况下较好的处理方式</p>
+</blockquote>
+<ol>
+<li>在BufferPool中的evictPage函数中实现页面移除所需的逻辑，而不移除脏页。</li>
+</ol>
+<h4 id="实现思路-3">实现思路</h4>
+<p>BufferPool采用的是LRU策略，当BufferPool满的时候从链表最后一个Page遍历，找到第一个干净页进行淘汰。</p>
+<h3 id="exercise-4">Exercise 4</h3>
+<h4 id="练习要求-4">练习要求</h4>
+<p>事务提交时，应该将与事务关联的脏页刷新到磁盘；事务中止时，应该将页面恢复到其在磁盘上的状态来恢复事务所做的任何更改。无论事务是提交还是中止，都应该释放BufferPool保持的关于事务的任何状态，包括释放事务持有的任何锁。</p>
+<ol>
+<li>在BufferPool中实现transactionComplete()方法。</li>
+</ol>
+<h4 id="实现思路-4">实现思路</h4>
+<p>代码如下：</p>
+<pre><code class="language-java">public void transactionComplete(TransactionId tid, boolean commit) {
+
+    if(commit){
+        // 事务提交
+        try {
+            // 刷新本事务修改的赃页到磁盘当中
+            flushPages(tid);
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+    }else{
+        // 事务终止
+        // 从BufferPool中丢弃本事务修改的赃页，从磁盘中读取没有被修改的页重新缓存到BufferPool中去
+        restorePages(tid);
+    }
+	
+    // 释放事务占用的所有锁
+    lockManager.removeTransactionLocks(tid);
+}
+</code></pre>
+<h3 id="exercise-5">Exercise 5</h3>
+<h4 id="练习要求-5">练习要求</h4>
+<p>解决事务产生的死锁问题，可以使用的策略有以下三种</p>
+<ul>
+<li>超时策略</li>
+<li>基于循环依赖图的死锁判定</li>
+<li>基于时间戳排序的乐观并发控制策略</li>
+</ul>
+<ol>
+<li>在BufferPool中实现死锁检测或预防</li>
+</ol>
+<h4 id="实现思路-5">实现思路</h4>
+<p>本练习使用了循环依赖图+超时策略，每次事务加锁失败之后会放弃一段时间的CPU，然后再次尝试获取锁，这样子不断地轮询下去直到成功获取锁。在尝试获取锁的过程中需要等待其他事务释放锁，在这里锁可以看成是一种资源。每次事务等待资源的时候就更新循环依赖图，并通过图检测是否会发生死锁，如果发生死锁那么抛出异常终止事务。此外，如果事务获取锁时间超时，也会抛出异常终止事务。</p>
+<blockquote>
+<p>在循环检测依赖图中，顶点表示事务，每条边都是有向边，表示一个事务等待另一个事务</p>
+</blockquote>
+<p>更新循环依赖图需要遵循以下几个规则：</p>
+<ul>
+<li>当前事务给当前页面加的是读锁
+<ul>
+<li>如果当前页面没有加锁，那么加锁成功。<strong>图不更新</strong></li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功。<strong>图不更新</strong></li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败。<strong>图更新，当前事务需要等待这个加锁的事务</strong></li>
+<li>如果当前页面加的是其他事务的读锁，可能有一个或者多个，那么在当前页面的读锁队列中加入当前事务加的读锁（如果已经存在直接返回即可），加锁成功</li>
+</ul>
+</li>
+<li>当前事务给当前页面加的是写锁
+<ul>
+<li>如果当前页面没有加锁，那么加锁成功</li>
+<li>如果当前页面中只有一把锁并且是本事务之前加的锁，无论这把锁是读锁还是写锁，都加锁成功。如果是读锁的话需要升级为写锁</li>
+<li>如果当前页面加的是其他事务的写锁，那么加锁失败。<strong>图更新，当前事务需要等待这个加锁的事务</strong></li>
+<li>如果当前页面加的是其他事务的读锁，那么加锁失败。<strong>图更新，当前事务需要等待读锁队列中的所有锁</strong></li>
+</ul>
+</li>
+</ul>
+<p>死锁检测过程：</p>
+<ul>
+<li>标记所有的顶点为未访问状态</li>
+<li>访问第一个顶点，设置该顶点为被访问状态，然后找到和顶点连接的其他顶点</li>
+<li>依次对其他顶点执行上一步的逻辑，如果发现某个顶点被访问过说明出现了循环等待，那么返回true表示出现死锁。如果遍历结束之后也没有出现过某个顶点被再次访问过的情况，那么返回false表示没有出现死锁</li>
+</ul>
+<p>超时机制：</p>
+<p>事务id生成的时候记录开始时间，每次获取锁失败的时候判断一下事务是否超时，如果超时的话终止事务。</p>
+<p>这里设置超时时间为30s，不排除长事务导致超时的可能性。</p>
+<p>代码如下：</p>
+<pre><code class="language-java">// 自旋获取锁 直到成功
+while (true){
+    // 语句加锁 并发
+    synchronized (lock){
+        // 如果获取锁失败
+        if(!lockManager.acquireLock(tid,pid,perm)){
+            // 等待其他事务释放锁，更新依赖图
+            lockManager.waitForResources(tid,pid,perm);
+            // 释放CPU
+            Thread.yield();
+            // 检测事务是否超时 超时的话直接抛出异常
+            if (isTimeOutTransaction(tid)) {
+            	throw new TransactionAbortedException();
+            }
+            // 检测是否出现死锁，如果出现的话会直接抛出异常
+            lockManager.dealWithPotentialDeadlocks(tid);
+        }else{
+            // 获取锁成功，直接返回
+            break;
+        }
+    }
+}
+</code></pre>
+<h2 id="存在的疑问和解答">存在的疑问和解答</h2>
+<p><strong>多个事务同时执行，如何保证事务之间修改数据互不影响？</strong></p>
+<p>假设事务1对页面1执行写入操作，事务2也对页面1执行写入操作，这两个事务同时执行。事务1先获取页面1的写锁，然后再页面中插入数据，该页面变成赃页，最后修改页面的是事务1，这个时候事务1并不会解锁，因为他还没有终止或者提交。事务1执行完毕之后会把赃页刷回磁盘中，然后再释放锁，这个时候事务2才能获取到页面1的写锁，紧接着事务2执行，修改页面1然后写回。</p>
+<p>从上面的过程可以看出当有多个事务同时执行的时候，会根据事务获取页面的顺序依次执行事务，不存在事务之间互相冲突导致数据错乱的情况，因为某个事务占有某个页面之后，其他事务要等到这个事务提交之后才能够占有这个页面。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[MIT6.830 LAB3 学习笔记]]></title>
+        <id>https://nanfeng1999.github.io/mit6830-lab3-xue-xi-bi-ji/</id>
+        <link href="https://nanfeng1999.github.io/mit6830-lab3-xue-xi-bi-ji/">
+        </link>
+        <updated>2023-01-26T02:59:48.000Z</updated>
+        <content type="html"><![CDATA[<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ant</td>
+<td>Build the default target (for simpledb, this is dist).</td>
+</tr>
+<tr>
+<td>ant -projecthelp</td>
+<td>List all the targets in <code>build.xml</code> with descriptions.</td>
+</tr>
+<tr>
+<td>ant dist</td>
+<td>Compile the code in src and package it in <code>dist/simpledb.jar</code>.</td>
+</tr>
+<tr>
+<td>ant test</td>
+<td>Compile and run all the unit tests.</td>
+</tr>
+<tr>
+<td>ant runtest -Dtest=testname</td>
+<td>Run the unit test named <code>testname</code>.</td>
+</tr>
+<tr>
+<td>ant systemtest</td>
+<td>Compile and run all the system tests.</td>
+</tr>
+<tr>
+<td>ant runsystest -Dtest=testname</td>
+<td>Compile and run the system test named <code>testname</code>.</td>
+</tr>
+</tbody>
+</table>
+<h1 id="实验目标">实验目标</h1>
+<p>实现一个查询优化器</p>
+<h1 id="实验大纲">实验大纲</h1>
+<ul>
+<li>实现TableStats类中的方法，这个类用来评估过滤器的选择率（命中条件的元组个数占元组总数的比例）和扫描元组成本，使用IntHistogram类实现这个功能（或者自己设计的其他统计数据形式）</li>
+<li>实现JoinOptimizer类中的方法，这个类用来估计JOIN（连接）操作的代价和选择率</li>
+<li>实现JoinOptimizer中的orderJoins方法，这个方法会根据以上两个步骤，给出JOIN集合的最优排序（推荐使用塞林格算法）</li>
+</ul>
+<h1 id="实验练习">实验练习</h1>
+<h2 id="练习一">练习一</h2>
+<h3 id="练习目标">练习目标</h3>
+<p>实现IntHistogram类，用来记录table中的统计信息，以便进行选择率估计</p>
+<h3 id="代码位置">代码位置</h3>
+<ul>
+<li>src/java/simpledb/optimizer/IntHistogram.java</li>
+</ul>
+<p>需要通过的测试有：IntHistogramTest</p>
+<h3 id="实现思路">实现思路</h3>
+<p>​	在simpleDB中元组的字段只有两种类型：字符串类型和整数类型，IntHistogram是针对整数类型做的统计直方图。</p>
+<figure data-type="image" tabindex="1"><img src="https://nanfeng1999.github.io/post-images/1674702458796.png" alt="" loading="lazy"></figure>
+<p>​	本练习的重点是参考以上这张图片，这是一张直方图，横坐标是整数，纵坐标是在元组的整数字段在某个范围内的元组总数。通过上面这个直方图可以计算出对整数类型使用的过滤操作的选择率，创建直方图的过程如下所示：</p>
+<ul>
+<li>遍历一遍整个table的元组，取出对应的整数类型字段，计算出所有数字中的最大值max和最小值min，用0作为直方图横坐标的最左端点，用max - min作为直方图横坐标的最右端点。<strong>下面所有的数字进行操作之前都减去min保证数字落在[0,max-min]这个范围内</strong></li>
+<li>把横坐标分成buckets个桶，每个桶代表一个数值范围，假设总范围是[0,2]，一共分成4个桶，那么这4个桶表示的范围分别是[0,0.5), [0.5,1),  [1,1.5),  [1.5,2] 。这里需要注意两个点：1.桶的个数可以大于max - min，这表示每个桶的范围会比1要小。2. 最后一个桶的范围区间是左闭右闭，其他桶的范围区间是左闭右开</li>
+<li>再次扫描一遍整个table的元组，假设某个元组需要进行统计的整数字段的值是x0，当前每个桶的区间长度是<code>width = (max - min) / buckets</code>，那么x0落在的桶的下标<code>index = (x0 - min) / width</code>（结果需要向下取整，有一个情况例外，那就是x0等于max，这个时候x0归属最后一个桶）。通过对table所有的元组的整数字段都执行以上的操作，最终会得到每个桶中的元组个数。</li>
+</ul>
+<p>通过上述几个步骤，我们得到了table对应的统计直方图，下面介绍如何计算选择率，参数和图中的参数一一对应。其中等于操作使用了古典概型，小于操作使用了几何概型</p>
+<ul>
+<li>如果对整数字段执行的是<code>等于操作</code> ，即计算table中整数字段等于const的选择率。首先计算出const属于哪个桶，这里假设属于桶b。如果桶b（下标从0开始）的width小于1，说明table中等于const的元组个数就等于这个桶中的元组个数。如果桶b的width大于1，这表示该桶的元组数量包含一个及以上的整数代表的元组，此时并不能准确的知道每个数字代表的元组个数的具体数目，可以通过取平均值进行估计，此时table中等于x的元组个数被估计为 <code>num = h_b/ (int(w_b)+1)</code>。最后将估算的数字除以元组总数得到const的选择率</li>
+<li>如果对整数字段执行的是<code>范围操作</code>，这里以小于操作为例，即计算table中整数字段小于const的选择率。首先计算出const属于哪个桶，这里假设属于桶b，那么在桶b中小于const的元组个数可以估计为<code>num1 = (const - min - b * width)*h_b/width</code>，在桶0,1...b-1中的元组都小于const，他们的总数为<code>num2 = h_0 + h_1 + ... + h_b-1</code>。最后把两者求和除以元组总数得到小于const的选择率</li>
+<li>其他操作，诸如大于、大于等于、小于等于、不等于的选择率可以通过以上两个运算求出</li>
+</ul>
+<p>​</p>
+<p><strong>IntHistogram类：</strong></p>
+<ul>
+<li>getIdx：根据传入的整数字段计算属于哪个桶</li>
+<li>addValue：添加整数字段，更新直方图中的数据</li>
+<li>estimateSelectivity：根据对应的操作计算出操作的选择率，操作包括等于、不等于、大于、小于、大于等于和小于等于</li>
+<li>estimateEqualSelectivity：计算等于操作的选择率</li>
+<li>estimateLessThanSelectivity：计算小于操作的选择率</li>
+</ul>
+<h2 id="练习二">练习二</h2>
+<h3 id="练习目标-2">练习目标</h3>
+<p>实现TableStats类，用来进行选择率估计</p>
+<h3 id="代码位置-2">代码位置</h3>
+<ul>
+<li>src/java/simpledb/optimizer/TableStats.java</li>
+</ul>
+<p>需要通过的测试有：TableStatsTest</p>
+<h3 id="实现思路-2">实现思路</h3>
+<p>TableStats类是在IntHistogram类外层再进行了一次封装</p>
+<p><strong>TableStats类：</strong></p>
+<ul>
+<li>构造函数：
+<ul>
+<li>扫描一遍整个table的元组，计算出其中整数字段（可能有多个）的最大值和最小值</li>
+<li>对每个字段创建对应的直方图，如果是整数类型字段创建IntHistogram类型的直方图，如果是字符串类型字段创建StringHistogram类型的直方图</li>
+<li>扫描第二遍table元组，把每个元组对应字段的数值填入对应的直方图中去，更新直方图中的数据</li>
+</ul>
+</li>
+<li>estimateScanCost：扫描整个元组的io代价</li>
+<li>estimateTableCardinality：根据选择率估计table的基数</li>
+<li>estimateSelectivity：根据操作符和字段估计某个常数的选择率</li>
+</ul>
+<h2 id="练习三">练习三</h2>
+<h3 id="练习目标-3">练习目标</h3>
+<p>编写用于估计连接的选择性和成本的方法，在本实验中做了简化</p>
+<h3 id="代码位置-3">代码位置</h3>
+<ul>
+<li>src/java/simpledb/optimizer/JoinOptimizer.java</li>
+</ul>
+<h3 id="实现思路-3">实现思路</h3>
+<p>本节代码量较小，主要难点是看懂实验说明2.2.4小结中的三个提示</p>
+<p><strong>JoinOptimizer类：</strong></p>
+<ul>
+<li>estimateJoinCost：估计连接的成本
+<ul>
+<li>左边的输入是基数card1，右边的输入是基数card2，扫描左边输入的代价是cost1，访问右边输入的代价是card2，使用的是嵌套循环连接方法，假设所有操作都没有命中缓存。</li>
+<li>首先扫描一遍左边的表格耗费cost1，然后对于左边表格的每一行元组都需要扫描一遍右边的表格，使用循环嵌套方式判断是否有满足条件的两个元组，执行JOIN合并操作得到一个新的元组，io代价耗费card1*cost2，计算代价耗费card1*card2，最后相加得到结果cost = cost1 + card1 * cost2 + card1 * card2</li>
+</ul>
+</li>
+<li>estimateJoinCardinality：估计连接的选择性
+<ul>
+<li>根据实验中2.2.4小结的三个提示来编写代码
+<ul>
+<li>1.对于相等连接，当其中一个字段是主键时，由连接产生的元组的数量不能大于非主键字段的基数</li>
+<li>2.对于没有主键的相等连接，很难说输出的大小是多少——它可以是表的基数的乘积的大小(如果两个表对所有元组都有相同的值)——也可以是0。可以编写一个简单的启发式(例如，两个表中较大的表的大小)</li>
+<li>3.对于范围扫描，同样很难准确地说出大小。输出的大小应该与输入的大小成比例。可以假设范围扫描发射了固定比例的叉乘(比如30%)。一般来说，范围连接的代价应该大于两个大小相同的表的非主键相等连接的代价</li>
+</ul>
+</li>
+<li>分析1：如果是有主键的相等连接，当一个字段是主键时，那么它必须唯一且不空，根据这个特性可以推出连接结果要小于等于非主键的基数，这里连接结果基数直接取非主键的基数</li>
+<li>分析2：如果是没有主键的相等连接，根据提示，连接结果基数直接取两个表基数的最大值</li>
+<li>分析3：如果是范围扫描，根据提示，连接结果基数取两个表叉乘基数的0.3</li>
+</ul>
+</li>
+</ul>
+<h2 id="练习四">练习四</h2>
+<h3 id="练习目标-4">练习目标</h3>
+<p>实现塞林格优化器，输入一串表格连接顺序，返回估算成本最小的连接顺序</p>
+<h3 id="代码位置-4">代码位置</h3>
+<ul>
+<li>src/java/simpledb/optimizer/JoinOptimizer.java</li>
+</ul>
+<h3 id="实现思路-4">实现思路</h3>
+<p>本节代码量适中，主要难点是实现看懂实验说明2.3小结中的伪代码，代码核心是动态规划</p>
+<pre><code class="language-java">1. j = set of join nodes
+2. for (i in 1...|j|):
+3.     for s in {all length i subsets of j}
+4.       bestPlan = {}
+5.       for s' in {all length d-1 subsets of s}
+6.            subplan = optjoin(s')
+7.            plan = best way to join (s-s') to subplan
+8.            if (cost(plan) &lt; cost(bestPlan))
+9.               bestPlan = plan
+10.      optjoin(s) = bestPlan
+11. return optjoin(j)
+</code></pre>
+<p><strong>JoinOptimizer类：</strong></p>
+<ul>
+<li>orderJoins：对连接顺序进行排序，返回估算成本最小的连接顺序
+<ul>
+<li>输入连接顺序和统计直方图集合</li>
+<li>遍历连接顺序的子集，获取长度为1的子集，计算每个子集连接代价，得到代价最小的子集，获取长度为2的子集....依次类推，最后可以计算出代价最小的连接顺序</li>
+</ul>
+</li>
+</ul>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[dubbo-go优雅上下线代码解读]]></title>
+        <id>https://nanfeng1999.github.io/dubbo-go-you-ya-shang-xia-xian-dai-ma-jie-du/</id>
+        <link href="https://nanfeng1999.github.io/dubbo-go-you-ya-shang-xia-xian-dai-ma-jie-du/">
+        </link>
+        <updated>2023-01-16T08:36:55.000Z</updated>
+        <content type="html"><![CDATA[<p>代码路径：dubbo-go/config/graceful_shutdown.go<br>
+<a href="https://mp.weixin.qq.com/s/28nbBu1RKPFZo7xM6O94UQ">dubbo-go优雅上下线原理</a></p>
+<h2 id="优雅关闭配置结构体">优雅关闭配置结构体</h2>
+<pre><code class="language-go">// ShutdownConfig is used as configuration for graceful shutdown
+type ShutdownConfig struct {
+    Timeout string `default:&quot;60s&quot; yaml:&quot;timeout&quot; json:&quot;timeout,omitempty&quot; property:&quot;timeout&quot;`
+
+    StepTimeout string `default:&quot;3s&quot; yaml:&quot;step-timeout&quot; json:&quot;step.timeout,omitempty&quot; property:&quot;step.timeout&quot;`
+
+    ConsumerUpdateWaitTime string `default:&quot;3s&quot; yaml:&quot;consumer-update-wait-time&quot; json:&quot;consumerUpdate.waitTIme,omitempty&quot; property:&quot;consumerUpdate.waitTIme&quot;`
+
+    RejectRequestHandler string `yaml:&quot;reject-handler&quot; json:&quot;reject-handler,omitempty&quot; property:&quot;reject_handler&quot;`
+
+    InternalSignal *bool `default:&quot;true&quot; yaml:&quot;internal-signal&quot; json:&quot;internal.signal,omitempty&quot; property:&quot;internal.signal&quot;`
+
+    OfflineRequestWindowTimeout string `yaml:&quot;offline-request-window-timeout&quot; json:&quot;offlineRequestWindowTimeout,omitempty&quot; property:&quot;offlineRequestWindowTimeout&quot;`
+
+    RejectRequest atomic.Bool
+
+    ConsumerActiveCount atomic.Int32
+    ProviderActiveCount atomic.Int32
+
+    ProviderLastReceivedRequestTime atomic.Time
+}
+</code></pre>
+<h2 id="代码分析">代码分析</h2>
+<blockquote>
+<p><strong>下面标红的部分表示和优雅关闭配置相关的内容</strong></p>
+</blockquote>
+<p><a href="https://blog.csdn.net/qq_23080741/article/details/119205621"><strong>kill命令信号全解</strong></a><br>
+<strong>gracefulShutdownInit函数：</strong></p>
+<ul>
+<li>获取客户端优雅关闭过滤器cGracefulShutdownFilter</li>
+<li>获取服务端优雅关闭过滤器sGracefulShutdownFilter</li>
+<li>cGracefulShutdownFilter中设置优雅关闭配置sdc（使用GetShutDown函数从根配置中获取）</li>
+<li>sGracefulShutdownFilter中设置优雅关闭配置sdc</li>
+<li>如果优雅关闭配置中设置为需要监听KILL信号（默认监听），进入下一步</li>
+<li>单独开启一个协程，以下是协程的执行函数</li>
+<li>等待KILL信号的到达，信号到达后进入下一步</li>
+<li>设置超时函数，如果一段时间后（取sdc中的Timeout和默认关闭时间的最大值，默认是60s），后面的处理还没有完成那么强制退出</li>
+<li>调用BeforeShutdown函数</li>
+<li>如果是通过转储堆栈退出的信号，那么打印此时的堆信息</li>
+</ul>
+<p><strong>BeforeShutdown函数：</strong></p>
+<ul>
+<li>调用destroyAllRegistries函数</li>
+<li>调用waitAndAcceptNewRequests函数</li>
+<li>调用waitAndAcceptNewRequests函数</li>
+<li>调用destroyProtocols函数</li>
+<li>依次执行自定义的回调函数</li>
+</ul>
+<p><strong>destroyAllRegistries函数：</strong></p>
+<ul>
+<li>从extension模块的缓存中获取注册中心协议（etcd、nacos、zookeeper等）</li>
+<li>注册中心协议调用Destroy函数，销毁注册信息</li>
+</ul>
+<p><strong>Destroy函数：</strong></p>
+<ul>
+<li>向注册中心发送反注册请求</li>
+<li>删除注册中心列表的所有注册中心结构体</li>
+<li>在consumerUpdateWait + stepTimeout这段时间后，取消对注册中心信息的监听（不能够立即取消，因为这期间还有可能会有新的下游的注册信息变动）</li>
+</ul>
+<p><strong>waitAndAcceptNewRequests函数：</strong></p>
+<ul>
+<li>等待一段时间（sdc中ConsumerUpdateWaitTime字段，默认3s），等待这一段时间是为了保证服务端在注册中心取消服务的信息能够传到客户端中去</li>
+<li>调用waitingProviderProcessedTimeout函数
+<ul>
+<li>设置截止时间，截止时间是当前时间加上一段时间（sdc中的StepTimeout字段，默认3s），这一段时间是为了保证本机发送出去的请求都得到了回复，需要根据 **绝大部分请求从发送到接收的时间 **进行估计，一般等待这个时间的2~3倍比较稳妥</li>
+<li>如果当前时间还没有到达截止时间，同时以下条件满足其中一个：1.本机作为服务提供方还有上游的请求正在处理中 2.当前时间在最近接收到的请求的离线窗口时间范围内（这个时间通过sdc中的OfflineRequestWindowTimeout字段确定，默认3s）。那么休眠10ms。循环执行步骤，直到有一个条件不被满足为止</li>
+</ul>
+</li>
+</ul>
+<p><strong>waitForSendingAndReceivingRequests函数：</strong></p>
+<ul>
+<li>设置拒绝后续请求</li>
+<li>调用waitingConsumerProcessedTimeout函数
+<ul>
+<li>设置截止时间，截止时间的设置步骤和waitingProviderProcessedTimeout函数中一致</li>
+<li>如果当前时间还没有到达截止时间，同时本机作为客户端调用下游服务的请求还没有全部结束。那么休眠10ms。循环这个步骤，直到有一个条件不被满足为止</li>
+</ul>
+</li>
+</ul>
+<p><strong>destroyProtocols函数：</strong></p>
+<ul>
+<li>获取本机作为客户端对下游任务的引用，从引用中获取使用的协议，最后得到协议集合</li>
+<li>调用destroyProviderProtocols函数，销毁本机作为服务提供者的协议资源
+<ul>
+<li>遍历协议集合</li>
+<li>进行判断，如果是本机作为服务消费者使用的协议，那么不销毁</li>
+<li>调用Destroy函数，销毁本机作为服务提供者使用的协议</li>
+</ul>
+</li>
+<li>调用destroyConsumerProtocols函数，销毁本机作为消费者使用的协议资源
+<ul>
+<li>调用Destroy函数，销毁本机作为服务消费者使用的协议</li>
+</ul>
+</li>
+</ul>
+<p><strong>Destory函数：</strong>（这是一个接口函数，dubbo、dubbo3、rest、grpc和jsonrpc都实现了这个接口，下面以dubbo协议的为例）</p>
+<ul>
+<li>调用BaseProtocol.Destroy
+<ul>
+<li>遍历协议的invoker列表，依次销毁invoker（本机作为服务消费者的时候才存在，本端对下游的服务提供者使用代理进行封装，直接使用本端的invoker调用函数即可实现远程调用服务的功能），一个invoker对应远程的一个服务</li>
+<li>遍历发布服务列表，依次取消服务的发布（通知注册中心取消服务，注册中心删除对应的服务信息）</li>
+</ul>
+</li>
+<li>遍历服务列表，依次暂停服务（本机作为服务提供者的时候才存在，从服务列表中删除服务信息，被删除的服务调用stop函数停止服务）</li>
+</ul>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[MIT6.830 LAB2 学习笔记]]></title>
+        <id>https://nanfeng1999.github.io/mit6830-lab-xue-xi-bi-ji/</id>
+        <link href="https://nanfeng1999.github.io/mit6830-lab-xue-xi-bi-ji/">
+        </link>
+        <updated>2023-01-11T14:06:20.000Z</updated>
+        <content type="html"><![CDATA[<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ant</td>
+<td>Build the default target (for simpledb, this is dist).</td>
+</tr>
+<tr>
+<td>ant -projecthelp</td>
+<td>List all the targets in <code>build.xml</code> with descriptions.</td>
+</tr>
+<tr>
+<td>ant dist</td>
+<td>Compile the code in src and package it in <code>dist/simpledb.jar</code>.</td>
+</tr>
+<tr>
+<td>ant test</td>
+<td>Compile and run all the unit tests.</td>
+</tr>
+<tr>
+<td>ant runtest -Dtest=testname</td>
+<td>Run the unit test named <code>testname</code>.</td>
+</tr>
+<tr>
+<td>ant systemtest</td>
+<td>Compile and run all the system tests.</td>
+</tr>
+<tr>
+<td>ant runsystest -Dtest=testname</td>
+<td>Compile and run the system test named <code>testname</code>.</td>
+</tr>
+</tbody>
+</table>
+<h1 id="实验目标">实验目标</h1>
+<p>可选择性的评估框架</p>
+<p>基于代价的优化器</p>
+<h1 id="实验大纲">实验大纲</h1>
+<ul>
+<li>实现Filter和Join两个操作，本实验已经实现好了Project和OrderBy两个操作</li>
+<li>实现IntegerAggregator和StringAggregator两个操作</li>
+</ul>
+<h1 id="实验练习">实验练习</h1>
+<h2 id="练习一">练习一</h2>
+<h3 id="练习目标">练习目标</h3>
+<p>实现Filter和Join两个操作</p>
+<ul>
+<li>Filter：这个操作只返回满足Predicate的元组，Predicate会作为构造器的一部分，这个操作会过滤掉不匹配Predicate的所有元组</li>
+<li>Join：这个操作会根据构造器中的JoinPredicate来连接两个子元组，实验只要求简单的嵌套循环连接，如果有更好的连接方式可以写到报告中去</li>
+</ul>
+<h3 id="代码位置">代码位置</h3>
+<ul>
+<li>src/java/simpledb/execution/Predicate.java</li>
+<li>src/java/simpledb/execution/JoinPredicate.java</li>
+<li>src/java/simpledb/execution/Filter.java</li>
+<li>src/java/simpledb/execution/Join.java</li>
+</ul>
+<p>需要通过的测试有：PredicateTest、JoinPredicateTest、FilterTest 和 JoinTest</p>
+<h3 id="实现思路">实现思路</h3>
+<p><strong>Predicate</strong>函数的作用是将元组中的指定字段和操作数进行比较，如果满足操作符返回true，不满足返回false。</p>
+<p>构造函数中包含三个参数，它们的含义如下：</p>
+<ul>
+<li>field：需要和operand比较的field在元组中的位置</li>
+<li>op：比较操作符，有大于、等于、小于、大于等于、小于等于、不等于这几种比较</li>
+<li>operand：被比较的字段</li>
+</ul>
+<p>该类核心是filter函数的实现，filter函数实现的思路如下：</p>
+<ul>
+<li>根据传入的元组和field，得到元组中某个需要进行比较的字段的位置</li>
+<li>根据op判断进行什么类型的比较操作</li>
+<li>将传入元组中指定的字段和operand进行比较，返回结果。如果满足op返回true，不满足返回false</li>
+</ul>
+<p><strong>Filter</strong>函数的作用是过滤出table（一个table保存在一个heapFile中）中所有满足条件的元组</p>
+<p>构造函数中包含三个参数，它们的含义如下：</p>
+<ul>
+<li>Predicate：Predicate类，根据元组指定字段和操作符过滤元组</li>
+<li>OpIterator：迭代器，迭代某个HeapFile中的所有元组</li>
+<li>OpIterator[]：迭代器集合</li>
+</ul>
+<p>Filter类的实现思路较为简单，通过迭代器依次取出文件中保存的元组，然后使用Predicate校验是否满足条件，返回满足条件的元组</p>
+<p><strong>JoinPredicate</strong>函数的作用是将满足条件的两个元组连接在一起，这个条件是指取出两个元组中的指定字段进行比较，判断是否满足操作符。</p>
+<p>构造函数包含三个参数，它们的含义如下：</p>
+<ul>
+<li>field1：第一个元组指定字段下标</li>
+<li>op：比较操作符，有大于、等于、小于、大于等于、小于等于、不等于这几种比较</li>
+<li>field2：第二个元组指定字段下标</li>
+</ul>
+<p><strong>Join</strong>函数的作用是将两个table的元组连接在一起返回新的元组，这里的连接是直接将两个元组合并，还有更多操作的连接，可以参考<strong>MYSQL的JOIN操作</strong></p>
+<p>举例说明</p>
+<pre><code class="language-json">元组1：{1，2，3} 指定第一个字段1
+元组2：{1，5，6} 指定第一个字段1
+op是等于操作
+因为元组1的第一个字段等于元组2的第二个字段，所以满足条件，将两个元组合并之后返回
+连接后的元组：{1，2，3，1，5，6}
+</code></pre>
+<p>构造函数包含三个参数，它们的含义如下：</p>
+<ul>
+<li>JoinPredicate：JoinPredicate类，连接两个元组</li>
+<li>operator1：迭代器1</li>
+<li>operator2：迭代器2</li>
+</ul>
+<p>该类核心是fetchNext函数的实现，这个函数的作用是获取下一个满足操作符的连接元组。需要注意两点：</p>
+<ul>
+<li>迭代器2每次使用完毕进入下一轮比较需要重置</li>
+<li>如果不是第一个调用该函数，那么下一次调用的时候迭代需要从上次结束的位置开始而不是重新开始</li>
+</ul>
+<h2 id="练习二">练习二</h2>
+<h3 id="练习目标-2">练习目标</h3>
+<p>实现聚合操作，可以参考MYSQL的[GROUP BY][https://baike.baidu.com/item/GROUP%20BY/11037177?fr=aladdin]操作，</p>
+<ul>
+<li>IntegerAggregator负责对整型字段的聚合操作</li>
+<li>StringAggregator负责对字符串类型的聚合操作</li>
+<li>Aggregate负责使用迭代器从聚合器中依次取出聚合结果</li>
+</ul>
+<h3 id="代码位置-2">代码位置</h3>
+<ul>
+<li>src/java/simpledb/execution/IntegerAggregator.java</li>
+<li>src/java/simpledb/execution/StringAggregator.java</li>
+<li>src/java/simpledb/execution/Aggregate.java</li>
+</ul>
+<p>需要通过的测试有：IntegerAggregatorTest、StringAggregatorTest和AggregateTest</p>
+<h3 id="实现思路-2">实现思路</h3>
+<p><strong>Aggregate</strong>类的作用是对数据库的table进行聚合操作，该操作依赖两个字段：使用GROUP BY进行分组的gField和使用聚合函数的aField。</p>
+<pre><code class="language-mysql">// 假设表格如下所示
+mysql&gt; select * from orderitems;
++-------+--------+------+----------+------------+
+| o_num | o_item | f_id | quantity | item_price |
++-------+--------+------+----------+------------+
+| 30001 |      1 | a1   |       10 |       5.20 |
+| 30001 |      2 | b2   |        3 |       7.60 |
+| 30001 |      3 | bs1  |        5 |      11.20 |
+| 30001 |      4 | bs2  |       15 |       9.20 |
+| 30002 |      1 | b3   |        2 |      20.00 |
+| 30003 |      1 | c0   |      100 |      10.00 |
+| 30004 |      1 | o2   |       50 |       2.50 |
+| 30005 |      1 | c0   |        5 |      10.00 |
+| 30005 |      2 | b1   |       10 |       8.99 |
+| 30005 |      3 | a2   |       10 |       2.20 |
+| 30005 |      4 | m1   |        5 |      14.99 |
++-------+--------+------+----------+------------+
+
+// 现在需要求 不同订单号订购的水果总量
+mysql&gt; select o_num,sum(quantity) as total from orderitems group by o_num;
++-------+-------+
+| o_num | total |
++-------+-------+
+| 30001 |    33 |
+| 30002 |     2 |
+| 30003 |   100 |
+| 30004 |    50 |
+| 30005 |    30 |
++-------+-------+
+
+// group by按订单号进行分组，sum统计每个分组中订购水果的总量
+// 在这个例子里面，gField是 o_num，aField是quantity
+</code></pre>
+<p>详情可以参考[MYSQL的聚合数据操作][https://www.cnblogs.com/panchanggui/p/10652334.html]，在本实验中需要实现MAX、MIN、SUM、AVG、COUNT五类聚合操作，他们的含义如下：</p>
+<ul>
+<li>MAX：对指定字段进行分组，计算出每组中最大的数字</li>
+<li>MIN：对指定字段进行分组，计算出每组中最小的数字</li>
+<li>SUM：对指定字段进行分组，计算出每组的所有数字和</li>
+<li>AVG：对指定字段进行分组，计算出每组的平均数</li>
+<li>COUNT：对指定字段进行分组，计算出每组的数量</li>
+</ul>
+<p>Aggregate类中需要定义一个Aggregator变量，这个变量是一个接口，由IntegerAggregator和StringAggregator两个类实现它，在创建Aggregate类变量时会根据aField的类型判断具体使用两个类中的哪一类</p>
+<p><strong>实现思路：</strong></p>
+<p>这里介绍初始化函数、open函数和fetchNext函数的实现思路</p>
+<ul>
+<li>初始化函数：根据aField判断具体使用哪种Aggregator</li>
+<li>open函数：使用传入的原始元组迭代器，依次取出元组调用aggregator.mergeTupleIntoGroup函数将元组输入到聚合操作中，然后调用aggregator.iterator()获取迭代器aggIter</li>
+<li>fetchNext函数：使用aggIter进行迭代即可</li>
+</ul>
+<p><strong>IntegerAggregator</strong>类的作用是实现对IntField的聚合操作，操作包含MAX、MIN、SUM、AVG、COUNT五类</p>
+<p><strong>实现思路：</strong></p>
+<p>使用MAX操作举例</p>
+<ul>
+<li>使用HashMap保存元素，GROUP BY字段gField作为Key，聚合结果作为Value</li>
+<li>调用HashMap的merge函数，传入gField判断该Key是否存在
+<ul>
+<li>如果存在，那么取出Value和执行聚合操作的aField中包含的Value进行比较，选出最大的Value重新放入HashMap中</li>
+<li>如果不存在，取出执行聚合操作的aField中包含的Value直接存入HashMap</li>
+</ul>
+</li>
+</ul>
+<p><strong>注意事项：</strong></p>
+<ul>
+<li>使用HashMap加快计算速度，而不是使用循环暴力计算；</li>
+<li>自定义一个基类，然后定义五种处理函数继承这个基类，在IntegerAggregator类中申明一个处理函数变量</li>
+<li>iterator()函数中创建TupleIterator作为OpIterator返回</li>
+<li>如果gbfield == NO_GROUPING表示没有指定GROUP BY字段，这个时候在HashMap中可以使用null作为Key。在创建TupleIterator的时候使用的Tuple包含一个字段，这个字段是记录聚合数据结果的字段</li>
+<li>如果gbfield ！= NO_GROUPING表示指定GROUP BY字段，这个时候在HashMap中可以使用指定字段作为Key。在创建TupleIterator的时候使用的Tuple包含两个字段，第一个是指定字段，第二个是记录聚合数据结果的字段</li>
+</ul>
+<p><strong>StringAggregator</strong>类的作用是实现对StringField的聚合操作，操作只有COUNT一种，实现思路与IntegerAggregator类一致</p>
+<h2 id="练习三">练习三</h2>
+<h3 id="练习目标-3">练习目标</h3>
+<p>元组的增删操作，重点是理清楚HeapFile和BufferPool之间互相调用的关系</p>
+<h3 id="代码位置-3">代码位置</h3>
+<ul>
+<li>src/java/simpledb/storage/HeapPage.java</li>
+<li>src/java/simpledb/storage/HeapFile.java</li>
+<li>src/java/simpledb/storage/BufferPool.java</li>
+</ul>
+<h3 id="实现思路-3">实现思路</h3>
+<p><strong>HeapPage类：</strong></p>
+<ul>
+<li>deleteTuple：根据PageId删除HeapPage中指定的某个元组，同时把Header对应的bit位设置为0</li>
+<li>insertTuple：在HeapPage中找到下一个空闲的slot，插入新增的元组，同时把Header对应的bit位设置为1</li>
+<li>markSlotUsed：把header对应的bit位设置为0或1</li>
+</ul>
+<p><strong>HeapFile类：</strong></p>
+<ul>
+<li>writePage：写入新page到HeapFile对应的文件中去，使用RandomAccessFile可以提高写入速度</li>
+<li>insertTuple
+<ul>
+<li>遍历全局BufferPool，依次从中取出HeapFile对应table所包含的HeapPage，查找存在空闲slot的HeapPage
+<ul>
+<li>如果找到，那么调用HeapPage的insertTuple方法</li>
+<li>如果没有找到，创建一个新的HeapPage，那么调用HeapPage的insertTuple方法，把这个page写入到文件中去</li>
+</ul>
+</li>
+<li>返回修改过的HeapPage列表</li>
+</ul>
+</li>
+<li>deleteTuple
+<ul>
+<li>根据传入的元组中的PageId取出全局BufferPool中对应的HeapPage</li>
+<li>调用HeapPage的insertTuple方法</li>
+<li>返回修改过的HeapPage列表</li>
+</ul>
+</li>
+</ul>
+<p><strong>BufferPool类：</strong></p>
+<ul>
+<li>deleteTuple
+<ul>
+<li>根据tableid从全局BufferPool中获取对应的HeapFile文件</li>
+<li>调用HeapFile的deleteTuple函数得到受影响的HeapPage（脏页）列表</li>
+<li>依次取出脏页，重新存入全局BufferPool中</li>
+</ul>
+</li>
+<li>insertTuple
+<ul>
+<li>根据tableid从全局BufferPool中获取对应的HeapFile文件</li>
+<li>调用HeapFile的insertTuple函数得到受影响的HeapPage（脏页）列表</li>
+<li>依次取出脏页，重新存入全局BufferPool中</li>
+</ul>
+</li>
+</ul>
+<h2 id="练习四">练习四</h2>
+<h3 id="练习目标-4">练习目标</h3>
+<p>完成Insert和Delete两个数据库操作</p>
+<p>Insert是在数据库中插入一批新的数据，对应SQL中的 INSERT INTO xxx VALUES(xxx,xxx,xxx)操作</p>
+<p>Delete是在数据库中删除一批新的数据，对应SQL中的DELETE FROM xxx操作</p>
+<h3 id="代码位置-4">代码位置</h3>
+<ul>
+<li>src/java/simpledb/execution/Insert.java</li>
+<li>src/java/simpledb/execution/Delete.java</li>
+</ul>
+<h3 id="实现思路-4">实现思路</h3>
+<p><strong>Insert类：</strong></p>
+<ul>
+<li>fetchNext
+<ul>
+<li>判断是否已经调用过一次，调用过的话直接返回null</li>
+<li>没有调用过，从迭代器中取出元组（需要删除的元组集合）</li>
+<li>调用全局的BufferPool的insertTuple函数删除元组，返回删除元组的条目数</li>
+</ul>
+</li>
+</ul>
+<p><strong>Delete类：</strong></p>
+<ul>
+<li>fetchNext
+<ul>
+<li>判断是否已经调用过一次，调用过的话直接返回null</li>
+<li>没有调用过，从迭代器中取出元组（需要插入的元组集合）</li>
+<li>调用全局的BufferPool的insertTuple函数插入元组，返回插入元组的条目数</li>
+</ul>
+</li>
+</ul>
+<h2 id="练习五">练习五</h2>
+<h3 id="练习目标-5">练习目标</h3>
+<p>实现BufferPool的页面淘汰策略，使用的淘汰算法不做限制</p>
+<h3 id="代码位置-5">代码位置</h3>
+<ul>
+<li>src/java/simpledb/storage/BufferPool.java</li>
+</ul>
+<h3 id="实现思路-5">实现思路</h3>
+<p><strong>辅助类LRUCache：</strong></p>
+<ul>
+<li>get：根据key获取某个元素，key是Page的hashcode</li>
+<li>put：存入一对KV，key是Page的hashcode，Value是Page</li>
+<li>remove：根据Key删除某个元素，Key是Page的hashcode</li>
+<li>removeOldest：删除链尾元素（最近最不常用的元素）</li>
+<li>entrySet：返回Page集合，用于遍历操作</li>
+<li>size：得到当前缓存的大小</li>
+</ul>
+<p><strong>BufferPool类：</strong></p>
+<ul>
+<li>getPage
+<ul>
+<li>从缓存中取出Page</li>
+<li>如果从LRU缓存中找不到对应的Page，那么从磁盘中取出
+<ul>
+<li>如果LRU缓存满，调用evictPage淘汰页面</li>
+<li>将Page存入缓存中</li>
+</ul>
+</li>
+<li>如果从LRU缓存中找到，直接返回</li>
+</ul>
+</li>
+<li>evictPage：移除最近最不常用的page，如果是脏页那么刷入磁盘中，同时标记页面为干净页</li>
+<li>flushPage：将page刷入磁盘中</li>
+<li>discardPage：从LRU缓存中删除某个page</li>
+<li>flushAllPages：遍历LRU缓存，把所有脏页刷入磁盘，标记页为干净页</li>
+</ul>
+]]></content>
+    </entry>
+</feed>

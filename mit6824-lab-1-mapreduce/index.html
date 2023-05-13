@@ -1,0 +1,405 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MIT6.824 LAB 1: MapReduce | 南风渐起的博客</title>
+<link rel="shortcut icon" href="https://nanfeng1999.github.io/favicon.ico?v=1683948151951">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://nanfeng1999.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="MIT6.824 LAB 1: MapReduce | 南风渐起的博客 - Atom Feed" href="https://nanfeng1999.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="目标
+本实验的目标是构建一个MapReduce系统，实现一个worker线程用来调用Map和Reduce函数、处理读写文件；实现一个coordinator 进程给works分配任务并处理失败的worker。实现步骤参考MapReduce论文..." />
+    <meta name="keywords" content="MIT6.824" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://nanfeng1999.github.io">
+  <img class="avatar" src="https://nanfeng1999.github.io/images/avatar.png?v=1683948151951" alt="">
+  </a>
+  <h1 class="site-title">
+    南风渐起的博客
+  </h1>
+  <p class="site-description">
+    focus,feedback and fix!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              MIT6.824 LAB 1: MapReduce
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-02-18
+              </span>
+              <span>
+                10 min read
+              </span>
+              
+                <a href="https://nanfeng1999.github.io/3bbGjtksJ/" class="post-tag">
+                  # MIT6.824
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h2 id="目标">目标</h2>
+<p>本实验的目标是构建一个MapReduce系统，实现一个worker线程用来调用Map和Reduce函数、处理读写文件；实现一个coordinator 进程给works分配任务并处理失败的worker。实现步骤参考MapReduce论文，实验中使用coordinator代替master</p>
+<h2 id="实验提供">实验提供</h2>
+<p>src/main/mrsequential.go代码中提供了mapreduce的简单顺序实现，这个函数一次跑一遍map和reduce</p>
+<p>实验提供了两个MapReduce的应用：</p>
+<ul>
+<li>mrapps/wc.go提供了word-count</li>
+<li>mrapps/indexer.go代码提供了indexer</li>
+</ul>
+<p>运行word-count的步骤</p>
+<pre><code class="language-shell">$ cd ~/6.5840
+$ cd src/main
+$ go build -buildmode=plugin ../mrapps/wc.go
+$ rm mr-out*
+$ go run mrsequential.go wc.so pg*.txt
+$ more mr-out-0
+A 509
+ABOUT 2
+ACT 8
+...
+</code></pre>
+<p>输入是pg*.txt，输出是mr-out-0</p>
+<h2 id="实验任务">实验任务</h2>
+<p>实现一个分布式的MapReduce，它由两个程序组成： coordinator和worker.</p>
+<ul>
+<li>coordinator线程只有一个，worker程序可以有多个并且是并行执行</li>
+<li>在真实系统中workers运行在不同的机器中，在这个实验中只需要运行在一个机器上</li>
+<li>worker通过RPC和coordinator交流</li>
+<li>每个worker线程向coordinator请求一个任务，从一个或者多个文件中读取任务的输入，执行任务，最后把任务的输出写入到一个或者多个文件中</li>
+<li>coordinator线程需要注意，如果worker没有在合理的时间之内完成工作（本实验设置为10s），那么认为这个任务执行失败，将相同的任务分配给其他的worker</li>
+</ul>
+<p>在main/mrcoordinator.go和main/mrworker.go中有coordinator和worker线程的参考代码</p>
+<p>本实验需要实现的是mr/coordinator.go, mr/worker.go和mr/rpc.go中的接口</p>
+<p>运行word-count MapReduce应用的示例：</p>
+<pre><code class="language-shell">$ go build -buildmode=plugin ../mrapps/wc.go #构造插件
+$ rm mr-out*#删除之前的输出文件
+$ go run mrcoordinator.go pg-*.txt#pg-*.txt作为输入 每个文件都是一个Map任务的输入
+$ go run mrworker.go wc.so#另外打开一个窗口 使用wc插件运行workers
+$ cat mr-out-* | sort | more#显示输出内容
+A 509
+ABOUT 2
+ACT 8
+...
+</code></pre>
+<p>在main/test-mr.sh中提供了一些测试脚本，测试会检查</p>
+<ul>
+<li>wc和indexer这两个应用有没有输出正确</li>
+<li>是否并行运行Map和Reduce任务</li>
+<li>当worker运行任务崩溃能否正常恢复运行</li>
+</ul>
+<p><strong>一些规则：</strong></p>
+<ul>
+<li>
+<p>Map阶段应该将生成的中间键值对分配到nReduce（reduce任务数）个桶里面。每个Map应创建nReduce个中间文件，以供reduce任务使用。</p>
+<blockquote>
+<p>解释：假设有10个reduce任务，那么一个Map任务生成的中间键值对就要划分为10个桶，根据中间键值对的key哈希值判断放入哪个桶中，划分完毕之后把每个桶写入到对应的文件中，等待后续reduce任务的读取</p>
+</blockquote>
+</li>
+<li>
+<p>worker实现应该将第X个reduce任务的输出放在文件mr-out-X中</p>
+</li>
+<li>
+<p>mr-out-X文件每个Reduce函数输出应该包含一行。这一行应该用Go“%v %v”格式生成，第一个%v是键，第二个%v是值。</p>
+</li>
+<li>
+<p>worker应该将Map任务的输出放在当前目录下的文件中，以便稍后将它们作为Reduce任务的输入读取。</p>
+</li>
+<li>
+<p>main/mrcoordinator.go期望mr/coordinator.gif实现一个Done方法，该方法在MapReduce任务完全完成时返回true；此时，mrcoordinator.go将退出。</p>
+</li>
+<li>
+<p>当所有任务完成之后，worker应该退出，可以通过两种方式实现</p>
+<ul>
+<li>如果worker联系不上coordinator可以假设coordinator已经退出，此时任务全部完成</li>
+<li>coordinator中所有任务完成之后给worker发送&quot;退出任务&quot;</li>
+</ul>
+</li>
+</ul>
+<p><strong>提示：</strong></p>
+<ul>
+<li>
+<p><a href="https://pdos.csail.mit.edu/6.824/labs/guidance.html">Guidance page</a> 有一些关于开发和调试的小技巧</p>
+</li>
+<li>
+<p>一种可行的方法</p>
+<ul>
+<li>worker线程向coordinator线程发送索要task的rpc请求</li>
+<li>coordinator回复没有被处理的文件名</li>
+<li>worker读取文件，调用Map函数</li>
+</ul>
+</li>
+<li>
+<p>Map和Reduce函数都是从.so文件中载入的</p>
+</li>
+<li>
+<p>如果修改了mr/目录中的内容，需要使用命令<code>go build -buildmode=plugin ../mrapps/wc.go</code>重新build插件</p>
+</li>
+<li>
+<p>workers共享同一个文件系统，如果所有worker在同一台机器上这是很容易实现的，如果是在多台机器上的话需要一个全局的文件系统，如GFS</p>
+</li>
+<li>
+<p>Map生成的中间文件需要一个合理的名字如：mr-X-Y，X是Map任务号，Y是reduce的任务号</p>
+</li>
+<li>
+<p>worker的map任务代码需要一种方法来保存中间键值对到文件中去，并且它能够被后续的reduce任务正确的读取，一个合理的方式是使用encoding/json包</p>
+<pre><code class="language-go">// 编码
+enc := json.NewEncoder(file)
+for _, kv := ... {
+    err := enc.Encode(&amp;kv)
+    dec := json.NewDecoder(file)
+    // 解码    
+for {
+	var kv KeyValue
+	if err := dec.Decode(&amp;kv); err != nil {
+		break
+	}
+	kva = append(kva, kv)
+}
+</code></pre>
+</li>
+<li>
+<p>worker的Map部分可以使用ihash(key)函数来计算哈希</p>
+</li>
+<li>
+<p>可以从mrsequential.go中获取一些代码，如：读取Map的输入文件，对中间键值对进行排序（Map和Reduce任务之间），把Reduce的输出存储到文件当中</p>
+</li>
+<li>
+<p>coordinator是并发的，要记得锁住共享数据</p>
+</li>
+<li>
+<p>使用go run --race命令检测并发竞争</p>
+</li>
+<li>
+<p>reduce任务需要等待所有map任务都完成之后再开始</p>
+<ul>
+<li>
+<p>一个可行的办法是，worker周期性地向coordinator请求任务，在请求之间休眠一段时间</p>
+</li>
+<li>
+<p>另一个可行的办法是，RPC处理程序循环等待，可以使用time.Sleep()或sync.Cond。Go在其自己的线程中为每个RPC运行处理程序，因此一个处理程序正在等待不会阻止coordinator处理其他RPC</p>
+</li>
+</ul>
+</li>
+<li>
+<p>coordinator不能够区分崩溃的worker、存活但是因为某些原因停止工作的worker和正在执行但速度太慢的worker。最好的方法是让coordinator等待一段时间，然后放弃并将任务重新分发给不同的worker。在这个实验中，coordinator等待十秒钟之后，coordinator应该假设worker已经死亡</p>
+</li>
+<li>
+<p>如果您选择实现备份任务（第3.6节），请注意，我们测试您的代码在工作人员执行任务时不会调度无关任务，而不会崩溃。备份任务只能在一段相对较长的时间（例如，10秒）后安排</p>
+</li>
+<li>
+<p>要测试崩溃恢复，可以使用mrapps/crash.go应用程序插件。它在Map和Reduce函数中随机退出</p>
+</li>
+<li>
+<p>test-mr.sh在子目录mr-tmp中运行它的所有进程，所以如果出现问题，您想查看中间文件或输出文件，请查看该目录。可以随意临时修改test-mr.sh以在测试失败后退出，这样脚本就不会继续测试(并覆盖输出文件)</p>
+</li>
+<li>
+<p>test-mr-many.sh会连续多次运行test-mr.sh，您可能希望这样做是为了发现低概率的错误。它以运行测试的次数作为参数。您不应该并行运行多个test-mr.sh实例，因为协调器将重用同一个套接字，从而导致冲突</p>
+</li>
+<li>
+<p>Go RPC只发送名称以大写字母开头的结构字段。子结构的字段名也必须大写。</p>
+</li>
+<li>
+<p>当调用RPC call()函数时，reply结构体应该包含所有默认值。RPC调用应该是这样的:</p>
+<pre><code class="language-go">reply := SomeType{}
+call(..., &amp;reply)
+</code></pre>
+</li>
+</ul>
+<h2 id="实现思路">实现思路</h2>
+<p>coordinator启动的时候读取所有的文件名，每个文件名封装成一个Task，Task结构体如下：</p>
+<pre><code class="language-go">type Task struct {
+   ID       int		// 任务ID 用于超时检测 和 coordinator状态切换
+   Type     TaskType// 任务类型：MAP、REDUCE、QUIT、NO_TASK四种
+   FileName string  // MAP任务读取的文件名
+   NReduce  int		// reduce任务的数量
+   NMap     int		// map任务的数量
+   Deadline int64	// 任务截止日期，超过截止日期判断为超时，需要重新放入任务队列
+}
+</code></pre>
+<p>Task共分为四种类型：</p>
+<ul>
+<li>MAP：Map任务</li>
+<li>REDUCE：Reduce任务</li>
+<li>NO_TASK：空状态任务，当任务队列为空的时候返回，worker接收到之后休眠一段时间</li>
+<li>QUIT：退出任务，worker接收到之后直接退出</li>
+</ul>
+<p>coordinator结构体如下：</p>
+<pre><code class="language-go">type Coordinator struct {
+   // Your definitions here.
+   state   string        // 记录处于哪个阶段
+   nReduce int           // reduce任务数量
+   nMap    int           // map任务数量
+   taskQue chan *Task    // 任务队列
+   taskMap map[int]*Task // 任务列表，用于超时检测和状态切换
+   mu      sync.Mutex    // 锁
+}
+</code></pre>
+<p>coordinator启动后一共分为三个阶段，MAP、REDUCE和QUIT：</p>
+<ul>
+<li>MAP：初始化读取所有文件名封装成对应的Map任务，等待所有的MapTask都完成（开启一个单独的线程来检测是否map任务完成和有任务超时），都完成的话进入reduce阶段</li>
+<li>REDUCE：生成nReduce个reduce任务，等待所有的ReduceTask都完成（开启一个单独的线程来检测是否Reduce任务完成和有任务超时），都完成的话进入quit阶段</li>
+<li>QUIT：生成nReduce个quit任务，等待所有的QuitTask都完成（开启一个单独的线程来检测是否quit任务完成和有任务超时），都完成的话终止程序</li>
+</ul>
+<p>work启动后每间隔一段时间就去向coordinator要Task，根据获取任务的类型，执行不同的操作：</p>
+<ul>
+<li>如果是MapTask，那么读取文件，把文件内容放入map函数中得到返回的kv对，依次遍历kv对，使用hash函数写入到不同的文件中</li>
+<li>如果是ReduceTask，那么读取该任务负责的文件（根据reduce号，文件名格式是mr-X-Y，其中X代表Map号，Y代表Reduce号），合并内容，进行排序，输入reduce函数中得到输出，把输出保存到文件中去，文件命名格式mr-out-Y</li>
+<li>如果是NO_TASK类型任务，那么worker休眠一段时间</li>
+<li>如果是QuitTask，那么worker直接退出</li>
+</ul>
+<p>超时和状态切换：</p>
+<pre><code class="language-go">func (c *Coordinator) detector() {
+   for {
+      c.mu.Lock()
+      if len(c.taskMap) == 0 {
+         c.changeState()
+      } else {
+         c.taskTimeout()
+      }
+      c.mu.Unlock()
+
+      time.Sleep(100 * time.Millisecond)
+   }
+}
+</code></pre>
+<p>单独开启一个detector线程，每间隔一段时间检测一下任务完成情况，如果当前阶段任务全部完成那么进入下一阶段，否则检测是否有任务超时，如果存在超时任务那么将任务重新放入到任务队列中去</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E7%9B%AE%E6%A0%87">目标</a></li>
+<li><a href="#%E5%AE%9E%E9%AA%8C%E6%8F%90%E4%BE%9B">实验提供</a></li>
+<li><a href="#%E5%AE%9E%E9%AA%8C%E4%BB%BB%E5%8A%A1">实验任务</a></li>
+<li><a href="#%E5%AE%9E%E7%8E%B0%E6%80%9D%E8%B7%AF">实现思路</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://nanfeng1999.github.io/mit6830-lab4-xue-xi-bi-ji/">
+              <h3 class="post-title">
+                MIT6.830 LAB4 学习笔记
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  nanfeng1999
+  <a class="rss" href="https://nanfeng1999.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

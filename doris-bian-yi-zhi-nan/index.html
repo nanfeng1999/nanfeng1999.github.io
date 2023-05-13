@@ -1,0 +1,304 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Doris编译指南 | 南风渐起的博客</title>
+<link rel="shortcut icon" href="https://nanfeng1999.github.io/favicon.ico?v=1683948151951">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://nanfeng1999.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Doris编译指南 | 南风渐起的博客 - Atom Feed" href="https://nanfeng1999.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="WSL 环境配置
+https://zhuanlan.zhihu.com/p/466001838
+JAVA和C++环境配置
+机器环境：WSL2.0 Ubuntu20.04
+连接机器，复制代码
+git clone https://github...." />
+    <meta name="keywords" content="Doris" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://nanfeng1999.github.io">
+  <img class="avatar" src="https://nanfeng1999.github.io/images/avatar.png?v=1683948151951" alt="">
+  </a>
+  <h1 class="site-title">
+    南风渐起的博客
+  </h1>
+  <p class="site-description">
+    focus,feedback and fix!
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Doris编译指南
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-05-11
+              </span>
+              <span>
+                6 min read
+              </span>
+              
+                <a href="https://nanfeng1999.github.io/AdpOdL8Hf/" class="post-tag">
+                  # Doris
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h2 id="wsl-环境配置">WSL 环境配置</h2>
+<p>https://zhuanlan.zhihu.com/p/466001838</p>
+<h2 id="java和c环境配置">JAVA和C++环境配置</h2>
+<p>机器环境：WSL2.0 Ubuntu20.04</p>
+<p>连接机器，复制代码</p>
+<pre><code class="language-shell">git clone https://github.com/nanfeng1999/doris #需要换成自己的fork地址
+</code></pre>
+<h3 id="java">JAVA</h3>
+<p>安装一些必须的第三方库</p>
+<pre><code class="language-shell">sudo apt update # 更新软件源
+sudo apt install build-essential openjdk-8-jdk maven cmake byacc flex automake libtool-bin bison binutils-dev libiberty-dev zip unzip libncurses5-dev curl git ninja-build python # 安装java 和 maven
+sudo apt install nodejs npm # 安装nodejs
+</code></pre>
+<p>npm换源</p>
+<pre><code class="language-shell">npm config set registry https://registry.npm.taobao.org # npm换源
+</code></pre>
+<p>maven设置仓库位置，仓库位置放在<code>~/repository</code>下面，如果放在/usr下面的话可能因为权限不够导致出错</p>
+<pre><code class="language-shell">vim /usr/share/maven/conf/settings.xml
+</code></pre>
+<p>在localRepository处加入以下内容</p>
+<pre><code class="language-xml">&lt;localRepository&gt;~/repository&lt;/localRepository&gt; 
+</code></pre>
+<p>maven设置阿里源</p>
+<pre><code class="language-shell">vim /usr/share/maven/conf/settings.xml
+</code></pre>
+<p>在mirrors处加入以下内容</p>
+<pre><code class="language-xml">&lt;mirror&gt;  
+	&lt;id&gt;alimaven&lt;/id&gt;
+	&lt;name&gt;aliyun maven&lt;/name&gt;
+	&lt;url&gt;http://maven.aliyun.com/nexus/content/groups/public/&lt;/url&gt;
+	&lt;mirrorOf&gt;central&lt;/mirrorOf&gt;
+&lt;/mirror&gt;
+</code></pre>
+<h3 id="c">C++</h3>
+<p>安装LDB toolchain，通过这种方式编译更加的快捷</p>
+<p>从<a href="https://github.com/amosbird/ldb_toolchain_gen/releases">这里</a>中下载最新版本的LDB toolchain并安装，或者使用以下命令</p>
+<pre><code class="language-shell">wget https://github.com/amosbird/ldb_toolchain_gen/releases/download/v0.17/ldb_toolchain_gen.sh
+sudo bash ldb_toolchain_gen.sh /usr/ldb_toolchain # 执行脚本 安装目录
+</code></pre>
+<h2 id="安装doris的第三方库依赖">安装Doris的第三方库依赖</h2>
+<p>Doris的第三方库位于~/doris/thirdparty中，如果直接使用<code>bash build.sh</code>命令编译doris的话会首先将第三方库下载下来，然后进行编译，以上两步的操作较慢，建议直接下载编译好的第三方库。获取doris第三方库的方式有以下三种</p>
+<p><strong>方法一：下载编译好的第三方库</strong></p>
+<p>从<a href="https://github.com/apache/doris-thirdparty/releases">这里</a>下载最新的已经编译好的第三方库 解压会得到一个 <code>installed/</code> 目录，将这个目录拷贝到 <code>thirdparty/</code> 目录下</p>
+<pre><code class="language-shell"># 使用wget下载 走代理下载 速度比较快 如果开了梯子那么可以不走代理下载 删除https://ghproxy.com/即可
+wget https://ghproxy.com/https://github.com/apache/doris-thirdparty/releases/download/automation/doris-thirdparty-prebuilt-linux-x86_64.tar.xz
+# 解压压缩包
+tar -xf doris-thirdparty-prebuilt-linux-x86_64.tar.xz
+</code></pre>
+<p>或者也可以直接在github网页上下载该包，然后通过文件传输协议上传到远程服务器上</p>
+<p><strong>方法二：手动修改失效的下载链接</strong></p>
+<p>Doris 所依赖的第三方库的下载连接都在 <code>thirdparty/vars.sh</code> 文件内。手动修改有问题的下载连接和对应的 MD5 值。</p>
+<p>这种方式需要下载好之后再进行编译</p>
+<p><strong>方法三：使用第三方下载仓库：</strong></p>
+<pre><code class="language-shell">export REPOSITORY_URL=https://doris-thirdparty-repo.bj.bcebos.com/thirdparty
+sh build-thirdparty.sh
+</code></pre>
+<p>这种方式需要下载好之后再进行编译</p>
+<h2 id="配置doris的编译环境">配置Doris的编译环境</h2>
+<p>进入doris的主目录</p>
+<p><code>vim custom_env.sh</code> 输入以下内容</p>
+<pre><code class="language-shell"># 以下路径全部根据自己的实际情况进行修改
+# 下载的JVM路径，如果是apt-get安装的 就是下面这个路径
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+export PATH=/usr/bin/:$PATH
+export PATH=$JAVA_HOME/bin:$PATH
+# 下载的maven路径，如果是apt-get安装的 就是下面这个路径
+export PATH=/usr/share/maven/bin:$PATH
+# 下载的ldb_toolchain路径
+export PATH=/usr/ldb_toolchain/bin:$PATH
+# 下载的第三方库路径
+export DORIS_THIRDPARTY=~/project/doris/thirdparty # doris的第三方库所在目录，根据具体情况修改
+# 编译类型 ASAN代表没有优化 适合DEBUG
+export BUILD_TYPE=ASAN
+</code></pre>
+<h2 id="编译fe">编译FE</h2>
+<pre><code class="language-shell">bash build.sh --fe
+</code></pre>
+<h2 id="编译be">编译BE</h2>
+<pre><code class="language-shell">bash build.sh --be
+</code></pre>
+<h2 id="可能出现的问题">可能出现的问题</h2>
+<p><strong>找不到定义或者包或者中间文件</strong></p>
+<p>在编译fe的时候可能报错找不到中间生成的文件夹，说明本用户没有权限在maven仓库中下载第三方包，这个时候把仓库转移到有权限的位置</p>
+<figure data-type="image" tabindex="1"><img src="https://nanfeng1999.github.io/post-images/1683947615041.png" alt="" loading="lazy"></figure>
+<p>在编译be的时候可能报错找不到定义，说明本用户编译be的目录没有写入权限，这个时候建议使用sudo编译或者将doris项目转移到有权限的目录中去</p>
+<figure data-type="image" tabindex="2"><img src="https://nanfeng1999.github.io/post-images/1683947631025.png" alt="" loading="lazy"></figure>
+<p>其他情况以此类推</p>
+<p><strong>编译BE内存不够直接dump</strong></p>
+<pre><code class="language-shell">sudo bash build.sh --be -j 2
+</code></pre>
+<p>编译BE默认使用的核心数是机器CUP核心数/3 + 1</p>
+<p>如果使用默认的核心数进行编译导致内存不够 那么可以尝试降低使用的CUP核心数</p>
+<p>通过 -j 指定，使用的核心数越少，占用的内存越少，但是相对而言，编译花费的时间越多</p>
+<p>此外，还可以采用clang来编译BE，内存占用相对于gcc少了很多，在ldb_toolchain的v0.14版本通过在命令行中<code>export DORIS_TOOLCHAIN=clang</code>来指定编译器，通过这种方式可以使用更多的核心数来编译代码</p>
+<p><strong>maven某些第三方库下载太慢</strong></p>
+<p><img src="https://nanfeng1999.github.io/post-images/1683811538334.png" alt="" loading="lazy"><br>
+编译fe的时候有一些比较大的包在阿里源中不存在，这个时候建议翻墙，或者使用其他源替换一下试试</p>
+<p>翻墙指南：https://v2raya.org/docs/prologue/installation/debian/</p>
+<p><strong>无法解析包</strong></p>
+<figure data-type="image" tabindex="3"><img src="https://nanfeng1999.github.io/post-images/1683811556553.png" alt="" loading="lazy"></figure>
+<p>翻墙之后可能会出现这个错误，多尝试几次编译即可</p>
+<p><strong>编译fe超出了WSL最大允许的内存</strong></p>
+<p>增大WSL允许的最大内存即可，推荐15GB以上</p>
+<p>在文件夹地址栏中输入<code>%homepath%</code>进入用户目录，在用户目录中创建文件<code>.wslconfig</code>，写入如下内容然后重启WSL的ubuntu系统</p>
+<pre><code class="language-shell">[wsl2]
+processors=8
+memory=15GB
+swap=8GB
+localhostForwarding=true
+</code></pre>
+<p><strong>找不到类定义</strong></p>
+<figure data-type="image" tabindex="4"><img src="https://nanfeng1999.github.io/post-images/1683947651057.png" alt="" loading="lazy"></figure>
+<p>这是因为在<code>custom_env.sh</code>脚本中使用的maven环境和系统自带的maven环境不是同一套，将两者保持一致即可</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#wsl-%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE">WSL 环境配置</a></li>
+<li><a href="#java%E5%92%8Cc%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE">JAVA和C++环境配置</a>
+<ul>
+<li><a href="#java">JAVA</a></li>
+<li><a href="#c">C++</a></li>
+</ul>
+</li>
+<li><a href="#%E5%AE%89%E8%A3%85doris%E7%9A%84%E7%AC%AC%E4%B8%89%E6%96%B9%E5%BA%93%E4%BE%9D%E8%B5%96">安装Doris的第三方库依赖</a></li>
+<li><a href="#%E9%85%8D%E7%BD%AEdoris%E7%9A%84%E7%BC%96%E8%AF%91%E7%8E%AF%E5%A2%83">配置Doris的编译环境</a></li>
+<li><a href="#%E7%BC%96%E8%AF%91fe">编译FE</a></li>
+<li><a href="#%E7%BC%96%E8%AF%91be">编译BE</a></li>
+<li><a href="#%E5%8F%AF%E8%83%BD%E5%87%BA%E7%8E%B0%E7%9A%84%E9%97%AE%E9%A2%98">可能出现的问题</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://nanfeng1999.github.io/mit6824-lab-1-mapreduce/">
+              <h3 class="post-title">
+                MIT6.824 LAB 1: MapReduce
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  nanfeng1999
+  <a class="rss" href="https://nanfeng1999.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
